@@ -1,0 +1,262 @@
+{
+  "info": {
+    "name": "信息学院管理后台接口测试集合",
+    "_postman_id": "2c6f2afe-2b48-45ac-b823-a43c438b2f59",
+    "description": "同学D用于联调 F-10/F-11/F-14 的 Postman 集合。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "登录",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"teacher01\",\n  \"password\": \"123456\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      }
+    },
+    {
+      "name": "仪表盘统计",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"grade\": \"2022\",\n  \"major\": \"计算机科学与技术\",\n  \"identity\": \"全部\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/dashboard",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "dashboard"
+          ]
+        }
+      }
+    },
+    {
+      "name": "通知列表",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/admin/notifications",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "notifications"
+          ]
+        }
+      }
+    },
+    {
+      "name": "推送对象预览",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"grade\": \"2022\",\n  \"major\": \"计算机科学与技术\",\n  \"identity\": \"全部\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/push/preview",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "push",
+            "preview"
+          ]
+        }
+      }
+    },
+    {
+      "name": "发送精准通知",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"2026届实习信息汇总推送\",\n  \"content\": \"请相关同学于本周五前完成岗位志愿填报。\",\n  \"grade\": \"2022\",\n  \"major\": \"计算机科学与技术\",\n  \"identity\": \"全部\",\n  \"channels\": [\"站内消息\", \"邮件\"]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/push/send",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "push",
+            "send"
+          ]
+        }
+      }
+    },
+    {
+      "name": "发送日志",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/admin/push/logs",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "push",
+            "logs"
+          ]
+        }
+      }
+    },
+    {
+      "name": "导出通知列表",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/admin/export/notifications",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "export",
+            "notifications"
+          ]
+        }
+      }
+    },
+    {
+      "name": "导入历史",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/admin/import/sessions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "import",
+            "sessions"
+          ]
+        }
+      }
+    },
+    {
+      "name": "批量导入通知",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": ""
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/admin/import/notifications",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "admin",
+            "import",
+            "notifications"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "token",
+      "value": "请先登录后替换成真实token"
+    }
+  ]
+}

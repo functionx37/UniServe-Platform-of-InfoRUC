@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    driver-class-name: com.kingbase8.Driver
+    url: jdbc:kingbase8://localhost:54321/student_db
+    username: system
+    password: 123456
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # ?? SQL
+    map-underline-to-camel-case: true # ????????

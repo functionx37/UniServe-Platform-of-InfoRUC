@@ -1,0 +1,12 @@
+<view class="u-nav u-card u-card--flat {{disabled ? 'u-nav--disabled' : ''}}" hover-class="{{disabled ? '' : 'u-nav--hover'}}" bindtap="onTap">
+  <view class="u-nav__icon" wx:if="{{iconText}}">{{iconText}}</view>
+  <view class="u-nav__body">
+    <view class="u-nav__title">{{title}}</view>
+    <view class="u-nav__subtitle" wx:if="{{subtitle}}">{{subtitle}}</view>
+  </view>
+  <view class="u-nav__right">
+    <text class="u-nav__rightText" wx:if="{{rightText}}">{{rightText}}</text>
+    <text class="u-nav__arrow">›</text>
+  </view>
+  <slot></slot>
+</view>

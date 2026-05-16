@@ -1,0 +1,46 @@
+<view class="container u-page">
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+
+  <view wx:if="{{!loading && !errorMsg}}">
+    <empty-state wx:if="{{!progress || !progress.nodes || !progress.nodes.length}}" title="暂无流程数据" description="请稍后重试或联系管理员维护流程配置" />
+
+    <view wx:else>
+      <status-card
+        title="当前阶段"
+        statusText="{{progress.currentStage}}"
+        statusType="info"
+        items="{{stageItems}}"
+      />
+
+      <view style="height: 12rpx"></view>
+      <progress-bar label="整体进度" percent="{{progress.progressPercent || 0}}" showPercent="{{true}}" />
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">流程节点</view>
+        <view style="height: 10rpx"></view>
+        <timeline nodes="{{progress.nodes}}" />
+      </view>
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">待办提醒</view>
+        <view style="height: 10rpx"></view>
+        <empty-state wx:if="{{!progress.todos || !progress.todos.length}}" title="暂无待办" description="当前阶段无待办事项" />
+        <view wx:else>
+          <view class="todo" wx:for="{{progress.todos}}" wx:key="title">
+            <view class="todo__dot"></view>
+            <view class="todo__body">
+              <view class="todo__title">{{item.title}}</view>
+              <view class="todo__meta" wx:if="{{item.dueAt}}">截止：{{item.dueAt}}</view>
+              <view class="todo__meta" wx:if="{{item.note}}">{{item.note}}</view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,11 @@
+<view class="u-progress">
+  <view class="u-progress__head" wx:if="{{label || valueText || showPercent}}">
+    <text class="u-progress__label" wx:if="{{label}}">{{label}}</text>
+    <text class="u-progress__value" wx:if="{{valueText}}">{{valueText}}</text>
+    <text class="u-progress__value" wx:elif="{{showPercent}}">{{clampedPercent}}%</text>
+  </view>
+  <view class="u-progress__track">
+    <view class="u-progress__bar" style="width: {{clampedPercent}}%; background: {{barColor}}"></view>
+  </view>
+  <slot></slot>
+</view>

@@ -1,0 +1,37 @@
+.todo {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+  padding: 14rpx 0;
+  border-top: 2rpx solid var(--color-border);
+}
+
+.todo:first-child {
+  border-top: none;
+}
+
+.todo__dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: var(--color-primary);
+  margin-top: 10rpx;
+}
+
+.todo__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo__title {
+  font-size: 30rpx;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.todo__meta {
+  margin-top: 6rpx;
+  font-size: 26rpx;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}

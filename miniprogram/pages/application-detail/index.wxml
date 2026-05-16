@@ -1,0 +1,68 @@
+<view class="container u-page">
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+  <empty-state wx:if="{{!loading && !errorMsg && !detail}}" title="未找到申请" description="请返回列表重新选择" />
+
+  <view wx:if="{{!loading && !errorMsg && detail}}">
+    <status-card
+      title="{{detail.typeLabel}}"
+      statusText="{{detail.status}}"
+      statusType="{{statusType}}"
+      description="{{detail.title}}"
+      items="{{metaItems}}"
+    />
+
+    <view style="height: 16rpx"></view>
+
+    <status-card title="表单内容" statusText="" statusType="info" items="{{formItems}}" />
+
+    <view style="height: 16rpx"></view>
+
+    <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+      <view class="u-title" style="font-size: 32rpx">附件</view>
+      <view style="height: 10rpx"></view>
+      <empty-state wx:if="{{!attachments.length}}" title="无附件" description="本申请未提交附件" />
+      <view wx:else>
+        <view class="att" wx:for="{{attachments}}" wx:key="name">
+          <view class="att__name">{{item.name}}</view>
+          <button wx:if="{{item.url}}" size="mini" class="u-btn u-btn--secondary att__btn" bindtap="copyUrl" data-url="{{item.url}}">
+            复制链接
+          </button>
+        </view>
+      </view>
+    </view>
+
+    <view style="height: 16rpx"></view>
+
+    <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+      <view class="u-title" style="font-size: 32rpx">审批进度</view>
+      <view style="height: 10rpx"></view>
+      <timeline nodes="{{approvals}}" />
+    </view>
+
+    <view style="height: 16rpx"></view>
+
+    <view class="u-card u-card--flat" style="padding: 18rpx 20rpx" wx:if="{{approvalOpinions.length}}">
+      <view class="u-title" style="font-size: 32rpx">审批意见</view>
+      <view style="height: 10rpx"></view>
+      <view class="op" wx:for="{{approvalOpinions}}" wx:key="step">
+        <view class="op__head">
+          <text class="op__step">{{item.step}}</text>
+          <text class="op__time">{{item.time}}</text>
+        </view>
+        <view class="op__text">{{item.opinion}}</view>
+      </view>
+    </view>
+
+    <view style="height: 16rpx"></view>
+
+    <view class="u-card u-card--flat" style="padding: 18rpx 20rpx" wx:if="{{result && result.downloadable}}">
+      <view class="u-title" style="font-size: 32rpx">申请结果</view>
+      <view style="height: 10rpx"></view>
+      <view class="row">
+        <text class="u-text">{{result.title || '结果文件'}}</text>
+        <button size="mini" class="u-btn u-btn--secondary" bindtap="openResult">复制下载链接</button>
+      </view>
+    </view>
+  </view>
+</view>

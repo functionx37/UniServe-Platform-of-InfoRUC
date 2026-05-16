@@ -1,0 +1,87 @@
+<view class="container u-page">
+  <view class="u-card" style="padding: 22rpx 24rpx">
+    <view class="u-title">新建申请</view>
+    <view style="height: 14rpx"></view>
+
+    <picker
+      mode="selector"
+      range="{{types}}"
+      range-key="label"
+      value="{{typeIndex}}"
+      bindchange="onType"
+    >
+      <view class="input">类型：{{types[typeIndex].label}}</view>
+    </picker>
+  </view>
+
+  <view style="height: 16rpx"></view>
+
+  <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+    <view class="u-title" style="font-size: 32rpx">表单内容</view>
+    <view style="height: 12rpx"></view>
+
+    <view wx:if="{{types[typeIndex].key === 'leave'}}">
+      <picker mode="date" value="{{form.leaveStart}}" bindchange="onDateChange" data-key="leaveStart">
+        <view class="input">请假开始：{{form.leaveStart || '请选择日期'}}</view>
+      </picker>
+      <view style="height: 12rpx"></view>
+      <picker mode="date" value="{{form.leaveEnd}}" bindchange="onDateChange" data-key="leaveEnd">
+        <view class="input">请假结束：{{form.leaveEnd || '请选择日期'}}</view>
+      </picker>
+      <view style="height: 12rpx"></view>
+      <input class="input" placeholder="请假事由" value="{{form.reason}}" bindinput="onField" data-key="reason" />
+      <view style="height: 12rpx"></view>
+      <input class="input" placeholder="联系电话" value="{{form.contactPhone}}" bindinput="onField" data-key="contactPhone" />
+      <view style="height: 12rpx"></view>
+      <file-uploader
+        label="附件（可选）"
+        placeholder="可选择竞赛通知/证明材料"
+        fileName="{{attachment.name}}"
+        extensions="{{['pdf','png','jpg','jpeg']}}"
+        bind:change="onAttachmentChange"
+        bind:remove="onAttachmentRemove"
+      />
+    </view>
+
+    <view wx:elif="{{types[typeIndex].key === 'enrollment_cert'}}">
+      <input class="input" placeholder="用途说明" value="{{form.purpose}}" bindinput="onField" data-key="purpose" />
+      <view style="height: 12rpx"></view>
+      <input class="input" placeholder="接收单位/部门" value="{{form.receiver}}" bindinput="onField" data-key="receiver" />
+      <view style="height: 12rpx"></view>
+      <file-uploader
+        label="附件（可选）"
+        placeholder="如需补充材料可上传"
+        fileName="{{attachment.name}}"
+        extensions="{{['pdf','png','jpg','jpeg']}}"
+        bind:change="onAttachmentChange"
+        bind:remove="onAttachmentRemove"
+      />
+    </view>
+
+    <view wx:elif="{{types[typeIndex].key === 'political_cert'}}">
+      <input class="input" placeholder="用途说明" value="{{form.purpose}}" bindinput="onField" data-key="purpose" />
+      <view style="height: 12rpx"></view>
+      <input class="input" placeholder="接收单位/部门" value="{{form.receiver}}" bindinput="onField" data-key="receiver" />
+      <view style="height: 12rpx"></view>
+      <file-uploader
+        label="附件（可选）"
+        placeholder="如有政审通知等可上传"
+        fileName="{{attachment.name}}"
+        extensions="{{['pdf','png','jpg','jpeg']}}"
+        bind:change="onAttachmentChange"
+        bind:remove="onAttachmentRemove"
+      />
+    </view>
+  </view>
+
+  <view style="height: 18rpx"></view>
+
+  <loading-view visible="{{loading}}" text="提交中…" />
+  <error-view wx:if="{{errorMsg}}" title="提交失败" message="{{errorMsg}}" bind:retry="submit" />
+
+  <view style="height: 12rpx"></view>
+
+  <button class="u-btn u-btn--primary" bindtap="submit" loading="{{loading}}" disabled="{{loading}}">
+    提交申请
+  </button>
+</view>

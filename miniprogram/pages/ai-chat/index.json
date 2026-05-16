@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "智能问答",
+  "usingComponents": {
+    "empty-state": "/components/empty-state/index",
+    "loading-view": "/components/loading-view/index",
+    "error-view": "/components/error-view/index"
+  }
+}

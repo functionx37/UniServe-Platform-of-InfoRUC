@@ -1,0 +1,145 @@
+.ai {
+  padding-bottom: 24rpx;
+}
+
+.ai__quick {
+  padding: 18rpx 20rpx;
+}
+
+.ai__quickTitle {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12rpx;
+}
+
+.ai__quickScroll {
+  width: 100%;
+}
+
+.ai__quickRow {
+  display: flex;
+  gap: 12rpx;
+}
+
+.ai__chip {
+  background: #ffffff;
+  border: 2rpx solid var(--color-border);
+  color: var(--color-text);
+  border-radius: 999rpx;
+  padding: 12rpx 16rpx;
+  font-size: 26rpx;
+  white-space: nowrap;
+}
+
+.ai__chip--small {
+  font-size: 24rpx;
+  padding: 10rpx 14rpx;
+  color: var(--color-text-muted);
+}
+
+.ai__chat {
+  height: calc(100vh - 420rpx);
+  background: var(--color-bg);
+}
+
+.ai__msg {
+  padding: 12rpx 0;
+}
+
+.ai__bubble {
+  max-width: 640rpx;
+  border-radius: var(--radius-lg);
+  padding: 18rpx 18rpx;
+  border: 2rpx solid var(--color-border);
+}
+
+.ai__bubble--user {
+  margin-left: auto;
+  background: rgba(29, 78, 216, 0.06);
+  border-color: rgba(29, 78, 216, 0.18);
+}
+
+.ai__bubble--sys {
+  margin-right: auto;
+  background: #ffffff;
+}
+
+.ai__bubbleText {
+  color: var(--color-text);
+  font-size: 30rpx;
+  line-height: 1.5;
+}
+
+.ai__label {
+  font-size: 24rpx;
+  color: var(--color-text-muted);
+  margin-bottom: 8rpx;
+}
+
+.ai__answer {
+  font-size: 30rpx;
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+.ai__source {
+  margin-top: 14rpx;
+  padding-top: 12rpx;
+  border-top: 2rpx solid var(--color-border);
+}
+
+.ai__sourceTitle {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8rpx;
+}
+
+.ai__sourceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.ai__sourceUrl {
+  font-size: 24rpx;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.ai__copyBtn {
+  padding: 14rpx 16rpx;
+  font-size: 24rpx;
+}
+
+.ai__related {
+  margin-top: 14rpx;
+}
+
+.ai__relatedRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.ai__inputBar {
+  padding: 16rpx;
+  display: flex;
+  gap: 12rpx;
+  align-items: center;
+}
+
+.ai__input {
+  flex: 1;
+}
+
+.ai__sendBtn {
+  padding: 18rpx 20rpx;
+  font-size: 28rpx;
+  flex: 0 0 auto;
+}

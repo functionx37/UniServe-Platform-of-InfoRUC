@@ -1,0 +1,31 @@
+<view class="container u-page">
+  <status-card
+    title="上传成绩单"
+    statusText="PDF / Excel"
+    statusType="info"
+    description="上传后系统将解析课程与学分，并生成培养方案比对与选课建议。"
+    items="{{infoItems}}"
+  />
+
+  <view style="height: 16rpx"></view>
+
+  <file-uploader
+    label="成绩单文件"
+    placeholder="请选择 PDF 或 Excel 文件"
+    fileName="{{fileName}}"
+    extensions="{{allowedExt}}"
+    tip="请选择学院规范成绩单文件，避免截图或无结构文件。"
+    bind:change="onFileChange"
+    bind:remove="onFileRemove"
+  />
+
+  <view style="height: 12rpx"></view>
+
+  <loading-view visible="{{loading}}" text="上传并解析中…" />
+  <error-view wx:if="{{errorMsg}}" title="处理失败" message="{{errorMsg}}" bind:retry="upload" />
+
+  <view style="height: 16rpx"></view>
+  <button class="u-btn u-btn--primary" bindtap="upload" disabled="{{!filePath || loading}}" loading="{{loading}}">
+    上传并解析
+  </button>
+</view>

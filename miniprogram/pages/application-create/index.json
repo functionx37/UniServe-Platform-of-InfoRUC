@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "新建申请",
+  "usingComponents": {
+    "file-uploader": "/components/file-uploader/index",
+    "status-card": "/components/status-card/index",
+    "loading-view": "/components/loading-view/index",
+    "error-view": "/components/error-view/index"
+  }
+}

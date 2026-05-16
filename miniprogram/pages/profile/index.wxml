@@ -1,0 +1,45 @@
+<view class="container u-page">
+  <view wx:if="{{!token}}">
+    <empty-state
+      title="未登录"
+      description="请先登录后查看个人信息与服务入口"
+      actionText="去登录"
+      showAction="{{true}}"
+      bind:action="goLogin"
+    />
+  </view>
+
+  <view wx:elif="{{token}}">
+    <loading-view visible="{{loading}}" text="加载中…" />
+    <error-view wx:if="{{!loading && errorMsg}}" title="获取信息失败" message="{{errorMsg}}" bind:retry="loadMe" />
+
+    <view wx:if="{{!loading && !errorMsg}}">
+      <status-card
+        title="基本信息"
+        statusText="学生"
+        statusType="info"
+        items="{{basicItems}}"
+      />
+
+      <view style="height: 16rpx"></view>
+
+      <status-card
+        title="联系方式"
+        statusText="已脱敏"
+        statusType="success"
+        items="{{contactItems}}"
+      />
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 10rpx 0">
+        <nav-card title="我的申请" subtitle="查看申请列表与状态" iconText="申" bind:tap="goApplications" />
+        <nav-card title="上传记录" subtitle="成绩单上传与解析记录" iconText="传" bind:tap="goUploads" />
+      </view>
+
+      <view style="height: 18rpx"></view>
+
+      <button class="u-btn u-btn--danger" bindtap="logout">退出登录</button>
+    </view>
+  </view>
+</view>

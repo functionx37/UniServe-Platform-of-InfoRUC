@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "上传成绩单",
+  "usingComponents": {
+    "file-uploader": "/components/file-uploader/index",
+    "loading-view": "/components/loading-view/index",
+    "error-view": "/components/error-view/index",
+    "status-card": "/components/status-card/index"
+  }
+}

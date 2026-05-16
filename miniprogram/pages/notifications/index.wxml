@@ -1,0 +1,57 @@
+<view class="container u-page">
+  <view class="u-card" style="padding: 22rpx 24rpx">
+    <view class="u-title">通知公告</view>
+    <view style="height: 12rpx"></view>
+    <view class="filters">
+      <view
+        class="{{tagIndex === index ? 'filter filter--active' : 'filter'}}"
+        wx:for="{{tagOptions}}"
+        wx:key="*this"
+        data-index="{{index}}"
+        bindtap="onFilterTap"
+      >
+        {{item}}
+      </view>
+    </view>
+  </view>
+
+  <view style="height: 16rpx"></view>
+
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+
+  <view wx:if="{{!loading && !errorMsg}}">
+    <empty-state wx:if="{{!list.length}}" title="暂无通知" description="当前标签下没有通知" />
+
+    <view wx:else class="u-card u-card--flat" style="padding: 10rpx 0">
+      <view class="item" wx:for="{{list}}" wx:key="id">
+        <view class="item__head" bindtap="toggle" data-id="{{item.id}}">
+          <view class="item__left">
+            <view class="item__title">{{item.title}}</view>
+            <view class="item__meta">
+              <text class="u-tag">{{item.tag}}</text>
+              <text class="item__time">{{item.publishAt}}</text>
+              <text class="{{item.read ? 'item__read' : 'item__unread'}}">{{item.read ? '已读' : '未读'}}</text>
+            </view>
+          </view>
+          <text class="item__arrow">{{expandedId === item.id ? '▾' : '▸'}}</text>
+        </view>
+
+        <view wx:if="{{expandedId === item.id}}" class="item__detail">
+          <view class="item__content">{{item.content || ''}}</view>
+          <view wx:if="{{item.links && item.links.length}}" class="item__links">
+            <view class="item__link" wx:for="{{item.links}}" wx:key="url">
+              <view class="item__linkTitle">{{item.title}}</view>
+              <view class="row" style="margin-top: 6rpx">
+                <text class="item__linkUrl">{{item.url}}</text>
+                <button size="mini" class="u-btn u-btn--secondary item__btn" bindtap="copyLink" data-url="{{item.url}}">
+                  复制链接
+                </button>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

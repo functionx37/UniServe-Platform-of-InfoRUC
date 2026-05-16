@@ -1,0 +1,11 @@
+{
+  "navigationBarTitleText": "党团进度",
+  "usingComponents": {
+    "loading-view": "/components/loading-view/index",
+    "empty-state": "/components/empty-state/index",
+    "error-view": "/components/error-view/index",
+    "status-card": "/components/status-card/index",
+    "progress-bar": "/components/progress-bar/index",
+    "timeline": "/components/timeline/index"
+  }
+}

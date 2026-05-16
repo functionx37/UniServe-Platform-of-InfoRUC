@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "通知",
+  "usingComponents": {
+    "loading-view": "/components/loading-view/index",
+    "empty-state": "/components/empty-state/index",
+    "error-view": "/components/error-view/index"
+  }
+}

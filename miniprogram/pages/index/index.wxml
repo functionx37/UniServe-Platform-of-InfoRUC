@@ -1,0 +1,32 @@
+<view class="container u-page">
+  <view class="u-card" style="padding: 28rpx">
+    <view class="u-title">首页</view>
+    <view style="height: 10rpx"></view>
+    <view class="u-subtitle">当前登录：{{userName}}</view>
+  </view>
+
+  <view style="height: 16rpx"></view>
+
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+
+  <view wx:if="{{!loading && !errorMsg}}">
+    <status-card
+      title="待办提醒"
+      statusText="请及时处理"
+      statusType="warning"
+      items="{{todoItems}}"
+    />
+
+    <view style="height: 16rpx"></view>
+
+    <view class="u-card u-card--flat" style="padding: 10rpx 0">
+      <nav-card title="智能问答" subtitle="政策解读与官方链接" iconText="问" bind:tap="goAi" />
+      <nav-card title="党团流程" subtitle="阶段进度与待办提醒" iconText="党" bind:tap="goParty" />
+      <nav-card title="事务申请" subtitle="提交申请并追踪状态" iconText="事" bind:tap="goApplications" />
+      <nav-card title="学业分析" subtitle="学分缺口与选课建议" iconText="学" bind:tap="goAcademic" />
+      <nav-card title="通知公告" subtitle="查看学院通知与推送" iconText="通" bind:tap="goNotifications" />
+      <nav-card title="模板下载" subtitle="下载常用模板文件" iconText="模" bind:tap="goTemplates" />
+    </view>
+  </view>
+</view>

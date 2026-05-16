@@ -1,0 +1,14 @@
+<view class="u-status u-card u-card--flat">
+  <view class="u-status__head">
+    <view class="u-status__title">{{title}}</view>
+    <view wx:if="{{statusText}}" class="{{tagClass}}">{{statusText}}</view>
+  </view>
+  <view wx:if="{{description}}" class="u-status__desc">{{description}}</view>
+  <view wx:if="{{items && items.length}}" class="u-status__list">
+    <view class="u-status__row" wx:for="{{items}}" wx:key="label">
+      <text class="u-status__label">{{item.label}}</text>
+      <text class="u-status__value">{{item.value}}</text>
+    </view>
+  </view>
+  <slot></slot>
+</view>

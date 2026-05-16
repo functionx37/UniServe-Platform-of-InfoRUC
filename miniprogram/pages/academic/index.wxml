@@ -1,0 +1,48 @@
+<view class="container u-page">
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+
+  <view wx:if="{{!loading && !errorMsg}}">
+    <empty-state wx:if="{{!overview}}" title="暂无数据" description="请稍后重试" />
+
+    <view wx:else>
+      <status-card
+        title="学分概览"
+        statusText="{{overview.gapCredits > 0 ? '存在缺口' : '达标'}}"
+        statusType="{{overview.gapCredits > 0 ? 'warning' : 'success'}}"
+        items="{{overviewItems}}"
+      />
+
+      <view style="height: 12rpx"></view>
+      <progress-bar
+        label="完成进度"
+        percent="{{completionPercent}}"
+        valueText="{{overview.earnedCredits + '/' + overview.totalCredits + ' 学分'}}"
+        colorType="{{overview.gapCredits > 0 ? 'warning' : 'success'}}"
+      />
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 10rpx 0">
+        <nav-card
+          title="上传成绩单"
+          subtitle="{{uploadSubtitle}}"
+          iconText="传"
+          bind:tap="goUpload"
+        />
+        <nav-card
+          title="查看培养方案比对"
+          subtitle="查看缺口学分、未完成必修、选课建议"
+          iconText="析"
+          bind:tap="goResult"
+        />
+        <nav-card
+          title="风险提示"
+          subtitle="{{riskSubtitle}}"
+          iconText="警"
+          bind:tap="goResult"
+        />
+      </view>
+    </view>
+  </view>
+</view>

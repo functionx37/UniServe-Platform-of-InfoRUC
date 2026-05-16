@@ -1,0 +1,33 @@
+.u-empty {
+  padding: 48rpx 24rpx;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.u-empty__icon {
+  width: 88rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  background: #ffffff;
+  border: 2rpx solid var(--color-border);
+  color: var(--color-text-muted);
+  margin: 0 auto 18rpx;
+  font-size: 40rpx;
+}
+
+.u-empty__title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.u-empty__desc {
+  margin-top: 10rpx;
+  font-size: 28rpx;
+  color: var(--color-text-muted);
+}
+
+.u-empty__btn {
+  margin-top: 20rpx;
+}

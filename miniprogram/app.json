@@ -1,0 +1,48 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/login/index",
+    "pages/ai-chat/index",
+    "pages/party-progress/index",
+    "pages/applications/index",
+    "pages/application-detail/index",
+    "pages/application-create/index",
+    "pages/academic/index",
+    "pages/transcript-upload/index",
+    "pages/academic-result/index",
+    "pages/notifications/index",
+    "pages/templates/index",
+    "pages/profile/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "UniServe",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f7f7",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#666666",
+    "selectedColor": "#1677ff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/ai-chat/index",
+        "text": "问答"
+      },
+      {
+        "pagePath": "pages/applications/index",
+        "text": "事务"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
+    ]
+  }
+}

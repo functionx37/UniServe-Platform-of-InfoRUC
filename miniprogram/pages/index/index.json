@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "首页",
+  "usingComponents": {
+    "nav-card": "/components/nav-card/index",
+    "status-card": "/components/status-card/index",
+    "loading-view": "/components/loading-view/index",
+    "error-view": "/components/error-view/index"
+  }
+}

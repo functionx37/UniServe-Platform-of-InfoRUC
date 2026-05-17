@@ -1,0 +1,78 @@
+<view class="container u-page">
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+
+  <view wx:if="{{!loading && !errorMsg}}">
+    <empty-state wx:if="{{!analysis}}" title="暂无分析结果" description="请先上传成绩单并完成解析" actionText="去上传" showAction="{{true}}" bind:action="goUpload" />
+
+    <view wx:else>
+      <status-card
+        title="培养方案比对结果"
+        statusText="{{analysis.gapCredits > 0 ? '存在缺口' : '达标'}}"
+        statusType="{{analysis.gapCredits > 0 ? 'warning' : 'success'}}"
+        items="{{summaryItems}}"
+        description="{{analysis.transcript ? ('基于成绩单：' + analysis.transcript.fileName) : ''}}"
+      />
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">课程模块完成情况</view>
+        <view style="height: 10rpx"></view>
+        <view wx:for="{{analysis.modules}}" wx:key="key" style="padding: 14rpx 0; border-top: 2rpx solid var(--color-border)">
+          <view style="display:flex; justify-content:space-between; align-items:baseline">
+            <text class="u-text" style="font-size: 30rpx; font-weight: 600">{{item.title}}</text>
+            <text class="u-subtitle">{{item.earnedCredits}} / {{item.requiredCredits}} 学分</text>
+          </view>
+          <view style="height: 10rpx"></view>
+          <progress-bar
+            percent="{{item.percent}}"
+            valueText="{{item.gapCredits > 0 ? ('缺口 ' + item.gapCredits + ' 学分') : '已达标'}}"
+            colorType="{{item.gapCredits > 0 ? 'warning' : 'success'}}"
+            showPercent="{{false}}"
+          />
+        </view>
+      </view>
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">预警原因（可解释）</view>
+        <view style="height: 10rpx"></view>
+        <empty-state wx:if="{{!analysis.risks || !analysis.risks.length}}" title="暂无预警" description="当前无风险提示" />
+        <view wx:else>
+          <view wx:for="{{analysis.risks}}" wx:key="*this" style="padding: 10rpx 0; border-top: 2rpx solid var(--color-border)">
+            <text class="u-text--muted">- {{item}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">未完成必修</view>
+        <view style="height: 10rpx"></view>
+        <empty-state wx:if="{{!analysis.missingRequiredCourses || !analysis.missingRequiredCourses.length}}" title="无缺失" description="必修课已完成" />
+        <view wx:else>
+          <view wx:for="{{analysis.missingRequiredCourses}}" wx:key="course" style="padding: 10rpx 0; border-top: 2rpx solid var(--color-border)">
+            <text class="u-text">- {{item.course}}</text>
+            <view wx:if="{{item.reason}}" class="u-subtitle">{{item.reason}}</view>
+          </view>
+        </view>
+      </view>
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">选课建议</view>
+        <view style="height: 10rpx"></view>
+        <empty-state wx:if="{{!analysis.suggestions || !analysis.suggestions.length}}" title="暂无建议" description="请上传并解析成绩单后查看" />
+        <view wx:else>
+          <view wx:for="{{analysis.suggestions}}" wx:key="*this" style="padding: 10rpx 0; border-top: 2rpx solid var(--color-border)">
+            <text class="u-text--muted">- {{item}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

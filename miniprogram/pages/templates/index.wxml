@@ -1,0 +1,33 @@
+<view class="container u-page">
+  <view class="u-card" style="padding: 22rpx 24rpx">
+    <view class="u-title">模板下载</view>
+    <view style="height: 10rpx"></view>
+    <view class="u-subtitle">下载常用模板文件，按学院要求填写提交</view>
+  </view>
+
+  <view style="height: 16rpx"></view>
+
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+
+  <view wx:if="{{!loading && !errorMsg}}">
+    <empty-state wx:if="{{!list.length}}" title="暂无模板" description="当前没有可下载模板" />
+
+    <view wx:else class="u-card u-card--flat" style="padding: 10rpx 0">
+      <view class="item" wx:for="{{list}}" wx:key="id">
+        <view class="item__left">
+          <view class="item__title">{{item.title}}</view>
+          <view class="item__meta">
+            <text class="u-tag">{{item.scene}}</text>
+            <text class="item__text">类型：{{item.fileType}}</text>
+            <text class="item__text">更新：{{item.updatedAt}}</text>
+          </view>
+        </view>
+        <view class="item__actions">
+          <button size="mini" class="u-btn u-btn--secondary item__btn" bindtap="preview" data-id="{{item.id}}">预览</button>
+          <button size="mini" class="u-btn u-btn--primary item__btn" bindtap="download" data-id="{{item.id}}">下载</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

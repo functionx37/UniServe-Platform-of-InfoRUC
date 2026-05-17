@@ -1,0 +1,66 @@
+<view class="container u-page ai">
+  <view class="u-card u-card--flat ai__quick">
+    <view class="ai__quickTitle">常见问题</view>
+    <scroll-view scroll-x class="ai__quickScroll" show-scrollbar="{{false}}">
+      <view class="ai__quickRow">
+        <view class="ai__chip" wx:for="{{quickQuestions}}" wx:key="*this" bindtap="onQuickTap" data-q="{{item}}">
+          {{item}}
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view style="height: 16rpx"></view>
+
+  <scroll-view scroll-y class="ai__chat">
+    <empty-state
+      wx:if="{{!messages.length}}"
+      title="暂无对话"
+      description="请输入问题，系统将优先返回官方政策答案或文件链接"
+    />
+
+    <view wx:else>
+      <view class="ai__msg" wx:for="{{messages}}" wx:key="id">
+        <view wx:if="{{item.type === 'user'}}" class="ai__bubble ai__bubble--user">
+          <text class="ai__bubbleText">{{item.text}}</text>
+        </view>
+
+        <view wx:elif="{{item.type === 'system'}}" class="ai__bubble ai__bubble--sys">
+          <view class="ai__label">政策答复</view>
+          <view class="ai__answer">{{item.answer}}</view>
+
+          <view wx:if="{{item.sourceTitle || item.sourceUrl}}" class="ai__source">
+            <view class="ai__sourceTitle">{{item.sourceTitle}}</view>
+            <view class="ai__sourceRow" wx:if="{{item.sourceUrl}}">
+              <text class="ai__sourceUrl">{{item.sourceUrl}}</text>
+              <button class="u-btn u-btn--secondary ai__copyBtn" size="mini" bindtap="copySource" data-url="{{item.sourceUrl}}">
+                复制链接
+              </button>
+            </view>
+          </view>
+
+          <view wx:if="{{item.relatedQuestions && item.relatedQuestions.length}}" class="ai__related">
+            <view class="ai__label">相关问题</view>
+            <view class="ai__relatedRow">
+              <view class="ai__chip ai__chip--small" wx:for="{{item.relatedQuestions}}" wx:key="*this" bindtap="onRelatedTap" data-q="{{item}}">
+                {{item}}
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view style="height: 12rpx"></view>
+
+  <error-view wx:if="{{errorMsg}}" title="请求失败" message="{{errorMsg}}" bind:retry="retry" />
+  <loading-view visible="{{loading}}" text="正在查询官方政策…" />
+
+  <view class="u-card u-card--flat ai__inputBar">
+    <input class="input ai__input" placeholder="请输入政策相关问题" value="{{question}}" bindinput="onQuestion" />
+    <button class="u-btn u-btn--primary ai__sendBtn" bindtap="send" disabled="{{loading || !question}}">
+      发送
+    </button>
+  </view>
+</view>

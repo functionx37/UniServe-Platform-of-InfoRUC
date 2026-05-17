@@ -1,0 +1,16 @@
+<view class="u-tl">
+  <view class="u-tl__item" wx:for="{{renderNodes}}" wx:key="key">
+    <view class="u-tl__left">
+      <view class="{{item.dotClass}}"></view>
+      <view class="{{item.lineClass}}" wx:if="{{index !== renderNodes.length - 1}}"></view>
+    </view>
+    <view class="u-tl__right">
+      <view class="u-tl__head">
+        <text class="u-tl__title">{{item.title}}</text>
+        <text class="u-tl__time" wx:if="{{item.time}}">{{item.time}}</text>
+      </view>
+      <view class="u-tl__desc" wx:if="{{item.desc}}">{{item.desc}}</view>
+    </view>
+  </view>
+  <slot></slot>
+</view>

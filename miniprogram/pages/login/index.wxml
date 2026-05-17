@@ -1,0 +1,19 @@
+<view class="container u-page">
+  <view class="u-card" style="padding: 28rpx">
+    <view class="u-title">学生登录</view>
+    <view style="height: 18rpx"></view>
+
+    <view class="u-subtitle">请输入学号与姓名（开发期使用 Mock 登录）</view>
+    <view style="height: 18rpx"></view>
+
+    <input class="input" placeholder="学号" value="{{studentNo}}" bindinput="onStudentNo" />
+    <view style="height: 12rpx"></view>
+    <input class="input" placeholder="姓名" value="{{name}}" bindinput="onName" />
+
+    <view style="height: 18rpx"></view>
+    <loading-view visible="{{loading}}" text="登录中…" />
+    <error-view wx:if="{{errorMsg}}" title="登录失败" message="{{errorMsg}}" bind:retry="onLogin" />
+    <view style="height: 12rpx"></view>
+    <button class="u-btn u-btn--primary" bindtap="onLogin" loading="{{loading}}">登录</button>
+  </view>
+</view>

@@ -1,0 +1,9 @@
+<view class="u-error">
+  <view class="u-error__icon">!</view>
+  <view class="u-error__title">{{title}}</view>
+  <view class="u-error__msg" wx:if="{{message}}">{{message}}</view>
+  <button wx:if="{{showRetry}}" class="u-btn u-btn--secondary u-error__btn" bindtap="onRetry">
+    {{retryText}}
+  </button>
+  <slot></slot>
+</view>

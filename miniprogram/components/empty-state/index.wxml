@@ -1,0 +1,13 @@
+<view class="u-empty">
+  <view class="u-empty__icon">{{iconText}}</view>
+  <view class="u-empty__title">{{title}}</view>
+  <view class="u-empty__desc" wx:if="{{description}}">{{description}}</view>
+  <button
+    wx:if="{{showAction && actionText}}"
+    class="u-btn u-btn--secondary u-empty__btn"
+    bindtap="onAction"
+  >
+    {{actionText}}
+  </button>
+  <slot></slot>
+</view>

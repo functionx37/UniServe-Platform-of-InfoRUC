@@ -24,3 +24,5 @@ UniServe-Platform-of-InfoRUC/
 ├─ .gitignore
 └─ README.md
 ```
+
+学生端小程序前端详细说明请见：[miniprogram/README.md](miniprogram/README.md)。

@@ -1,0 +1,26 @@
+<view class="u-upload u-card u-card--flat">
+  <view class="u-upload__head">
+    <text class="u-upload__label">{{label}}</text>
+    <view class="u-upload__actions">
+      <button class="u-btn u-btn--secondary u-upload__btn" size="mini" bindtap="onChoose" disabled="{{disabled}}">
+        选择文件
+      </button>
+      <button
+        wx:if="{{deletable && innerFileName}}"
+        class="u-btn u-btn--secondary u-upload__btn"
+        size="mini"
+        bindtap="onRemove"
+        disabled="{{disabled}}"
+      >
+        删除
+      </button>
+    </view>
+  </view>
+  <view class="u-upload__body">
+    <text class="{{innerFileName ? 'u-upload__name' : 'u-upload__placeholder'}}">
+      {{innerFileName || placeholder}}
+    </text>
+  </view>
+  <view class="u-upload__tip" wx:if="{{tip}}">{{tip}}</view>
+  <slot></slot>
+</view>

@@ -1,0 +1,41 @@
+<view class="container u-page">
+  <view class="u-card" style="padding: 22rpx 24rpx">
+    <view class="row">
+      <view class="u-title">事务申请</view>
+      <button size="mini" class="u-btn u-btn--secondary" bindtap="goCreate">新建</button>
+    </view>
+    <view style="height: 12rpx"></view>
+    <view class="filters">
+      <view
+        class="{{statusIndex === index ? 'filter filter--active' : 'filter'}}"
+        wx:for="{{statusOptions}}"
+        wx:key="*this"
+        data-index="{{index}}"
+        bindtap="onFilterTap"
+      >
+        {{item}}
+      </view>
+    </view>
+  </view>
+
+  <view style="height: 16rpx"></view>
+
+  <loading-view visible="{{loading}}" text="加载中…" />
+  <error-view wx:if="{{!loading && errorMsg}}" title="加载失败" message="{{errorMsg}}" bind:retry="retry" />
+
+  <view wx:if="{{!loading && !errorMsg}}">
+    <empty-state wx:if="{{!list.length}}" title="暂无申请" description="可点击右上角“新建”提交申请" />
+
+    <view wx:else class="u-card u-card--flat" style="padding: 10rpx 0">
+      <view class="item" wx:for="{{list}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+        <view class="item__left">
+          <view class="item__title">{{item.title}}</view>
+          <view class="item__meta">{{item.typeLabel}} · {{item.createdAt}}</view>
+        </view>
+        <view class="{{item.status === '已通过' ? 'u-tag u-tag--success' : (item.status === '已驳回' ? 'u-tag u-tag--danger' : (item.status === '审批中' ? 'u-tag u-tag--warning' : 'u-tag'))}}">
+          {{item.status}}
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

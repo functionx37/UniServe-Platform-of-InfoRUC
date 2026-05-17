@@ -1,0 +1,7 @@
+<view wx:if="{{visible}}" class="{{fullscreen ? 'u-loading u-loading--fullscreen' : 'u-loading'}}">
+  <view class="u-loading__box">
+    <view class="u-loading__spinner"></view>
+    <view class="u-loading__text">{{text}}</view>
+    <slot></slot>
+  </view>
+</view>

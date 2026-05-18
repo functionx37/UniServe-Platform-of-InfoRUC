@@ -13,4 +13,4 @@ mybatis-plus:
 # ========== 自定义加密配置 ==========
 app:
   security:
-    aes-key: ruc2026secretkey!            # AES 密钥（必须 16 字节，生产环境请使用更复杂的值）
+    aes-key: ruc2026secretkey            # AES 密钥（必须 16 字节，生产环境请使用更复杂的值）

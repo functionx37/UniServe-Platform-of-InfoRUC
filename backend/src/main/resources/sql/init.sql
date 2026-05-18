@@ -202,3 +202,6 @@ CREATE TABLE audit_logs (
 -- 实际项目建议通过程序初始化管理员账户
 -- =============================================
 -- INSERT INTO users(username, password, role_id, real_name) VALUES ('teacher01', '', 2, '李老师');
+-- 插入默认管理老师，密码为 123456 的 BCrypt 密文
+INSERT INTO users (username, password, role_id, real_name)
+VALUES ('teacher01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8MNVz3GHkV5iEvGUD6FXQzC6ynu7y', 2, '李老师');

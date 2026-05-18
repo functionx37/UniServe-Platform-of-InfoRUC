@@ -14,3 +14,6 @@ mybatis-plus:
 app:
   security:
     aes-key: ruc2026secretkey            # AES 密钥（必须 16 字节，生产环境请使用更复杂的值）
+  jwt:
+    secret: ThisIsASecretKeyForJWT2026!  # JWT 签名密钥，至少 256 位（32 字节以上）
+    expiration: 86400000               # 有效期：1 天（单位毫秒）

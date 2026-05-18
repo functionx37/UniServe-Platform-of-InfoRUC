@@ -20,7 +20,9 @@ public class AuthController {
             LoginResponse response = authService.login(request);
             return Result.success(response);
         } catch (RuntimeException e) {
-            return Result.error(e.getMessage());
+            System.err.println("登录失败: " + e.getMessage());
+            e.printStackTrace();
+            return Result.error(e.getMessage() != null ? e.getMessage() : "登录失败，请检查控制台日志");
         }
     }
 }

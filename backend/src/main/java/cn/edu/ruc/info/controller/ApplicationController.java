@@ -19,8 +19,7 @@ public class ApplicationController {
     @GetMapping
     public Result<List<ApplicationVO>> list(@RequestParam(defaultValue = "全部") String status) {
         try {
-            List<ApplicationVO> list = applicationService.listApplications(status);
-            return Result.success(list);
+            return Result.success(applicationService.listApplications(status));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }
@@ -29,8 +28,17 @@ public class ApplicationController {
     @PostMapping
     public Result<ApplicationVO> create(@RequestBody ApplicationRequest request) {
         try {
-            ApplicationVO vo = applicationService.createApplication(request);
-            return Result.success(vo);
+            return Result.success(applicationService.createApplication(request));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    // 新增：查看申请详情
+    @GetMapping("/{id}")
+    public Result<ApplicationService.ApplicationDetailVO> detail(@PathVariable Long id) {
+        try {
+            return Result.success(applicationService.getApplicationDetail(id));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

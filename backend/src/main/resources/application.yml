@@ -3,11 +3,14 @@ spring:
     driver-class-name: com.kingbase8.Driver
     url: ${DB_URL:jdbc:kingbase8://localhost:54321/student_db}
     username: ${DB_USERNAME:system}
-    password: ${DB_PASSWORD:system}
+    password: ${DB_PASSWORD:123456}
   servlet:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+
+server:
+  port: ${SERVER_PORT:8081}
 
 mybatis-plus:
   configuration:

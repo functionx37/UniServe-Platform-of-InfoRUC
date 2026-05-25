@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -31,15 +32,18 @@ public class AdminService {
     private final DeliveryLogMapper deliveryLogMapper;
     private final ImportSessionMapper importSessionMapper;
     private final UserMapper userMapper;
+    private final AuditLogService auditLogService;
 
     public AdminService(NotificationMapper notificationMapper,
             DeliveryLogMapper deliveryLogMapper,
             ImportSessionMapper importSessionMapper,
-            UserMapper userMapper) {
+            UserMapper userMapper,
+            AuditLogService auditLogService) {
         this.notificationMapper = notificationMapper;
         this.deliveryLogMapper = deliveryLogMapper;
         this.importSessionMapper = importSessionMapper;
         this.userMapper = userMapper;
+        this.auditLogService = auditLogService;
     }
 
     public DashboardVO getDashboard(DashboardRequest request) {
@@ -113,51 +117,152 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    public ImportNotificationsResult importNotifications(String fileName, List<ImportNotificationRow> rows, Long operatorId) {
-        int failedRows = 0;
-        int successRows = 0;
-        for (ImportNotificationRow row : rows) {
-            if (row == null || isBlank(row.getTitle()) || isBlank(row.getCategory())) {
-                failedRows++;
-                continue;
+    public ImportNotificationsResult importNotifications(String fileName, List<ImportNotificationRow> rows,
+            Long operatorId) {
+        try {
+            int failedRows = 0;
+            int successRows = 0;
+            for (ImportNotificationRow row : rows) {
+                if (row == null || isBlank(row.getTitle()) || isBlank(row.getCategory())) {
+                    failedRows++;
+                    continue;
+                }
+                Notification notification = new Notification();
+                notification.setId("policy-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+                notification.setTitle(row.getTitle().trim());
+                notification.setCategory(row.getCategory().trim());
+                notification.setTag(categoryToTag(row.getCategory()));
+                notification.setGrade(defaultIfBlank(row.getGrade(), "全部"));
+                notification.setMajor(defaultIfBlank(row.getMajor(), "全部"));
+                notification.setChannel(defaultIfBlank(row.getChannel(), "站内消息"));
+                notification.setPublishAt(defaultIfBlank(row.getPublishAt(), "待定"));
+                notification.setStatus(defaultIfBlank(row.getStatus(), "待发布"));
+                notification.setCreatedBy(operatorId);
+                notificationMapper.insert(notification);
+                successRows++;
             }
+
+            ImportSession session = new ImportSession();
+            session.setId("import-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            session.setFileName(fileName);
+            session.setTotalRows(rows.size());
+            session.setSuccessRows(successRows);
+            session.setFailedRows(failedRows);
+            session.setImportedAt(LocalDateTime.now().format(FORMATTER));
+            session.setOperatorId(operatorId);
+            importSessionMapper.insert(session);
+
+            auditLogService.success("IMPORT_NOTIFICATIONS", session.getId());
+            return ImportNotificationsResult.builder()
+                    .importSession(ImportSessionVO.builder()
+                            .id(session.getId())
+                            .fileName(session.getFileName())
+                            .totalRows(session.getTotalRows())
+                            .successRows(session.getSuccessRows())
+                            .failedRows(session.getFailedRows())
+                            .importedAt(session.getImportedAt())
+                            .build())
+                    .notifications(listNotifications())
+                    .message("已导入 " + successRows + " 行，失败 " + failedRows + " 行")
+                    .build();
+        } catch (RuntimeException e) {
+            auditLogService.failure("IMPORT_NOTIFICATIONS", fileName, e.getMessage());
+            throw e;
+        }
+    }
+
+    public PushPreviewVO previewPush(PushFilter filter) {
+        List<User> users = listRecipients(filter);
+        List<RecipientVO> recipients = users.stream()
+                .map(user -> RecipientVO.builder()
+                        .id(user.getId())
+                        .studentNo(user.getStudentNo())
+                        .realName(user.getRealName())
+                        .grade(user.getGrade())
+                        .major(user.getMajor())
+                        .identity(user.getIdentity())
+                        .build())
+                .collect(Collectors.toList());
+        return PushPreviewVO.builder()
+                .recipients(recipients)
+                .total(recipients.size())
+                .build();
+    }
+
+    public DeliveryLogVO sendPush(SendPushRequest request, Long operatorId) {
+        String auditTarget = defaultIfBlank(request.getGrade(), "全部") + "/" + defaultIfBlank(request.getMajor(), "全部")
+                + "/"
+                + defaultIfBlank(request.getIdentity(), "全部");
+        try {
+            if (isBlank(request.getTitle()) || isBlank(request.getContent())) {
+                throw new RuntimeException("标题和内容不能为空");
+            }
+            List<User> recipients = listRecipients(PushFilter.builder()
+                    .grade(request.getGrade())
+                    .major(request.getMajor())
+                    .identity(request.getIdentity())
+                    .build());
+
+            String now = LocalDateTime.now().format(FORMATTER);
+            String channels = request.getChannels() == null ? "" : String.join("、", request.getChannels());
+            DeliveryLog log = new DeliveryLog();
+            log.setId("delivery-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            log.setTitle(request.getTitle().trim());
+            log.setAudience(
+                    defaultIfBlank(request.getGrade(), "全部") + " / " + defaultIfBlank(request.getMajor(), "全部") + " / "
+                            + defaultIfBlank(request.getIdentity(), "全部"));
+            log.setChannels(isBlank(channels) ? "站内消息" : channels);
+            log.setSentAt(now);
+            log.setCount(recipients.size());
+            log.setStatus(recipients.isEmpty() ? "无匹配对象" : "已发送");
+            log.setOperatorId(operatorId);
+            deliveryLogMapper.insert(log);
+
             Notification notification = new Notification();
-            notification.setId("policy-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-            notification.setTitle(row.getTitle().trim());
-            notification.setCategory(row.getCategory().trim());
-            notification.setTag(categoryToTag(row.getCategory()));
-            notification.setGrade(defaultIfBlank(row.getGrade(), "全部"));
-            notification.setMajor(defaultIfBlank(row.getMajor(), "全部"));
-            notification.setChannel(defaultIfBlank(row.getChannel(), "站内消息"));
-            notification.setPublishAt(defaultIfBlank(row.getPublishAt(), "待定"));
-            notification.setStatus(defaultIfBlank(row.getStatus(), "待发布"));
+            notification.setId("push-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            notification.setTitle(request.getTitle().trim());
+            notification.setCategory("推送");
+            notification.setTag("通知");
+            notification.setGrade(defaultIfBlank(request.getGrade(), "全部"));
+            notification.setMajor(defaultIfBlank(request.getMajor(), "全部"));
+            notification.setChannel(isBlank(channels) ? "站内消息" : channels);
+            notification.setPublishAt(now);
+            notification.setStatus("已发布");
+            notification.setContent(request.getContent());
             notification.setCreatedBy(operatorId);
             notificationMapper.insert(notification);
-            successRows++;
+
+            auditLogService.success("SEND_PUSH", log.getId());
+            return DeliveryLogVO.builder()
+                    .id(log.getId())
+                    .title(log.getTitle())
+                    .audience(log.getAudience())
+                    .channels(log.getChannels())
+                    .sentAt(log.getSentAt())
+                    .count(log.getCount())
+                    .status(log.getStatus())
+                    .build();
+        } catch (RuntimeException e) {
+            auditLogService.failure("SEND_PUSH", auditTarget, e.getMessage());
+            throw e;
         }
+    }
 
-        ImportSession session = new ImportSession();
-        session.setId("import-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-        session.setFileName(fileName);
-        session.setTotalRows(rows.size());
-        session.setSuccessRows(successRows);
-        session.setFailedRows(failedRows);
-        session.setImportedAt(LocalDateTime.now().format(FORMATTER));
-        session.setOperatorId(operatorId);
-        importSessionMapper.insert(session);
-
-        return ImportNotificationsResult.builder()
-                .importSession(ImportSessionVO.builder()
-                        .id(session.getId())
-                        .fileName(session.getFileName())
-                        .totalRows(session.getTotalRows())
-                        .successRows(session.getSuccessRows())
-                        .failedRows(session.getFailedRows())
-                        .importedAt(session.getImportedAt())
-                        .build())
-                .notifications(listNotifications())
-                .message("已导入 " + successRows + " 行，失败 " + failedRows + " 行")
-                .build();
+    private List<User> listRecipients(PushFilter filter) {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.ne(User::getRoleId, 1).ne(User::getRoleId, 2).ne(User::getRoleId, 3);
+        if (filter != null) {
+            if (!isBlank(filter.getGrade()) && !"全部".equals(filter.getGrade())) {
+                wrapper.eq(User::getGrade, filter.getGrade());
+            }
+            if (!isBlank(filter.getMajor()) && !"全部".equals(filter.getMajor())) {
+                wrapper.eq(User::getMajor, filter.getMajor());
+            }
+            if (!isBlank(filter.getIdentity()) && !"全部".equals(filter.getIdentity())) {
+                wrapper.eq(User::getIdentity, filter.getIdentity());
+            }
+        }
+        return userMapper.selectList(wrapper);
     }
 
     private NotificationVO toNotificationVO(Notification notification) {
@@ -210,5 +315,41 @@ public class AdminService {
         private ImportSessionVO importSession;
         private List<NotificationVO> notifications;
         private String message;
+    }
+
+    @lombok.Data
+    @lombok.Builder
+    public static class PushFilter {
+        private String grade;
+        private String major;
+        private String identity;
+    }
+
+    @lombok.Data
+    @lombok.Builder
+    public static class RecipientVO {
+        private Long id;
+        private String studentNo;
+        private String realName;
+        private String grade;
+        private String major;
+        private String identity;
+    }
+
+    @lombok.Data
+    @lombok.Builder
+    public static class PushPreviewVO {
+        private List<RecipientVO> recipients;
+        private Integer total;
+    }
+
+    @lombok.Data
+    public static class SendPushRequest {
+        private String title;
+        private String content;
+        private String grade;
+        private String major;
+        private String identity;
+        private List<String> channels;
     }
 }

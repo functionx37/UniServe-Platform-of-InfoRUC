@@ -31,40 +31,49 @@ public class KnowledgeBaseService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final FileStorageService fileStorageService;
     private final StoragePathHelper storagePathHelper;
+    private final AuditLogService auditLogService;
     private volatile List<KnowledgeChunk> indexedChunks = new ArrayList<>();
 
     public KnowledgeBaseService(KnowledgeDocumentMapper knowledgeDocumentMapper,
             FileStorageService fileStorageService,
-            StoragePathHelper storagePathHelper) {
+            StoragePathHelper storagePathHelper,
+            AuditLogService auditLogService) {
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.fileStorageService = fileStorageService;
         this.storagePathHelper = storagePathHelper;
+        this.auditLogService = auditLogService;
     }
 
     public DocumentUploadResult uploadDocument(MultipartFile file, String title, String sourceUrl, Long operatorId) {
-        String originalName = file.getOriginalFilename();
-        String extension = getExtension(originalName);
-        validateKnowledgeExtension(extension);
+        try {
+            String originalName = file.getOriginalFilename();
+            String extension = getExtension(originalName);
+            validateKnowledgeExtension(extension);
 
-        FileStorageService.StoredFile storedFile = fileStorageService.saveMultipartFile(
-                file,
-                storagePathHelper.getKnowledgeBasePath(),
-                "kb");
+            FileStorageService.StoredFile storedFile = fileStorageService.saveMultipartFile(
+                    file,
+                    storagePathHelper.getKnowledgeBasePath(),
+                    "kb");
 
-        KnowledgeDocument document = new KnowledgeDocument();
-        document.setId("kb-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-        document.setTitle(StringUtils.hasText(title) ? title.trim() : stripExtension(storedFile.originalName()));
-        document.setFileName(storedFile.originalName());
-        document.setFileType(extension.replace(".", "").toLowerCase(Locale.ROOT));
-        document.setFilePath(storedFile.path().toString());
-        document.setSourceUrl(StringUtils.hasText(sourceUrl) ? sourceUrl.trim() : null);
-        document.setActive(true);
-        document.setUploadedBy(operatorId);
-        document.setUploadedAt(LocalDateTime.now());
-        knowledgeDocumentMapper.insert(document);
+            KnowledgeDocument document = new KnowledgeDocument();
+            document.setId("kb-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            document.setTitle(StringUtils.hasText(title) ? title.trim() : stripExtension(storedFile.originalName()));
+            document.setFileName(storedFile.originalName());
+            document.setFileType(extension.replace(".", "").toLowerCase(Locale.ROOT));
+            document.setFilePath(storedFile.path().toString());
+            document.setSourceUrl(StringUtils.hasText(sourceUrl) ? sourceUrl.trim() : null);
+            document.setActive(true);
+            document.setUploadedBy(operatorId);
+            document.setUploadedAt(LocalDateTime.now());
+            knowledgeDocumentMapper.insert(document);
 
-        rebuildIndex();
-        return DocumentUploadResult.from(document);
+            rebuildIndex();
+            auditLogService.success("UPLOAD_KNOWLEDGE_DOC", document.getId());
+            return DocumentUploadResult.from(document);
+        } catch (RuntimeException e) {
+            auditLogService.failure("UPLOAD_KNOWLEDGE_DOC", "knowledge", e.getMessage());
+            throw e;
+        }
     }
 
     public List<DocumentUploadResult> listDocuments() {
@@ -75,28 +84,34 @@ public class KnowledgeBaseService {
     }
 
     public int rebuildIndex() {
-        List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(
-                new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getActive, true)
-                        .orderByDesc(KnowledgeDocument::getUploadedAt));
-        List<KnowledgeChunk> chunks = new ArrayList<>();
-        for (KnowledgeDocument document : documents) {
-            String text = extractText(Path.of(document.getFilePath()), document.getFileType());
-            if (!StringUtils.hasText(text)) {
-                continue;
+        try {
+            List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(
+                    new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getActive, true)
+                            .orderByDesc(KnowledgeDocument::getUploadedAt));
+            List<KnowledgeChunk> chunks = new ArrayList<>();
+            for (KnowledgeDocument document : documents) {
+                String text = extractText(Path.of(document.getFilePath()), document.getFileType());
+                if (!StringUtils.hasText(text)) {
+                    continue;
+                }
+                List<String> parts = splitIntoChunks(text);
+                for (int i = 0; i < parts.size(); i++) {
+                    chunks.add(KnowledgeChunk.builder()
+                            .documentId(document.getId())
+                            .documentTitle(document.getTitle())
+                            .sourceUrl(document.getSourceUrl())
+                            .chunkIndex(i)
+                            .text(parts.get(i))
+                            .build());
+                }
             }
-            List<String> parts = splitIntoChunks(text);
-            for (int i = 0; i < parts.size(); i++) {
-                chunks.add(KnowledgeChunk.builder()
-                        .documentId(document.getId())
-                        .documentTitle(document.getTitle())
-                        .sourceUrl(document.getSourceUrl())
-                        .chunkIndex(i)
-                        .text(parts.get(i))
-                        .build());
-            }
+            indexedChunks = chunks;
+            auditLogService.success("REBUILD_KNOWLEDGE_INDEX", String.valueOf(chunks.size()));
+            return chunks.size();
+        } catch (RuntimeException e) {
+            auditLogService.failure("REBUILD_KNOWLEDGE_INDEX", "knowledge", e.getMessage());
+            throw e;
         }
-        indexedChunks = chunks;
-        return chunks.size();
     }
 
     public List<KnowledgeChunk> search(String question, int limit) {

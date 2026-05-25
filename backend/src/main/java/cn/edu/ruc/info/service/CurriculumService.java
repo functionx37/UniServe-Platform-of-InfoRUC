@@ -2,6 +2,7 @@ package cn.edu.ruc.info.service;
 
 import cn.edu.ruc.info.entity.CurriculumFile;
 import cn.edu.ruc.info.mapper.CurriculumFileMapper;
+import cn.edu.ruc.info.util.JsonUtils;
 import cn.edu.ruc.info.util.StoragePathHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.Builder;
@@ -30,59 +31,68 @@ public class CurriculumService {
     private final FileStorageService fileStorageService;
     private final StoragePathHelper storagePathHelper;
     private final JsonUtils jsonUtils;
+    private final AuditLogService auditLogService;
     private volatile CurriculumDefinition cachedDefinition;
 
     public CurriculumService(CurriculumFileMapper curriculumFileMapper,
             FileStorageService fileStorageService,
             StoragePathHelper storagePathHelper,
-            JsonUtils jsonUtils) {
+            JsonUtils jsonUtils,
+            AuditLogService auditLogService) {
         this.curriculumFileMapper = curriculumFileMapper;
         this.fileStorageService = fileStorageService;
         this.storagePathHelper = storagePathHelper;
         this.jsonUtils = jsonUtils;
+        this.auditLogService = auditLogService;
     }
 
     public UploadResult upload(MultipartFile file, Long operatorId) {
-        String originalName = file.getOriginalFilename();
-        String extension = getExtension(originalName);
-        if (!List.of(".json", ".xlsx", ".xls").contains(extension)) {
-            throw new RuntimeException("培养方案仅支持 JSON 或 Excel 文件");
+        try {
+            String originalName = file.getOriginalFilename();
+            String extension = getExtension(originalName);
+            if (!List.of(".json", ".xlsx", ".xls").contains(extension)) {
+                throw new RuntimeException("培养方案仅支持 JSON 或 Excel 文件");
+            }
+
+            FileStorageService.StoredFile storedFile = fileStorageService.saveMultipartFile(
+                    file,
+                    storagePathHelper.getCurriculumPath(),
+                    "curriculum");
+            Path actualPath = storedFile.path();
+
+            CurriculumDefinition definition = loadDefinition(actualPath, extension);
+            cachedDefinition = definition;
+
+            curriculumFileMapper.selectList(null).forEach(item -> {
+                item.setActive(false);
+                curriculumFileMapper.updateById(item);
+            });
+
+            CurriculumFile curriculumFile = new CurriculumFile();
+            curriculumFile.setId("cur-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            curriculumFile.setFileName(storedFile.originalName());
+            curriculumFile.setFileType(extension.replace(".", ""));
+            curriculumFile.setFilePath(actualPath.toString());
+            curriculumFile.setVersion(definition.getVersion());
+            curriculumFile.setActive(true);
+            curriculumFile.setUploadedBy(operatorId);
+            curriculumFile.setUploadedAt(LocalDateTime.now());
+            curriculumFileMapper.insert(curriculumFile);
+
+            auditLogService.success("UPLOAD_CURRICULUM", curriculumFile.getId());
+            return UploadResult.builder()
+                    .id(curriculumFile.getId())
+                    .fileName(curriculumFile.getFileName())
+                    .version(curriculumFile.getVersion())
+                    .programName(definition.getProgramName())
+                    .requiredModules(definition.getRequiredModules().size())
+                    .requiredCourses(definition.getRequiredCourses().size())
+                    .uploadedAt(curriculumFile.getUploadedAt().toString())
+                    .build();
+        } catch (RuntimeException e) {
+            auditLogService.failure("UPLOAD_CURRICULUM", "curriculum", e.getMessage());
+            throw e;
         }
-
-        FileStorageService.StoredFile storedFile = fileStorageService.saveMultipartFile(
-                file,
-                storagePathHelper.getCurriculumPath(),
-                "curriculum");
-        Path actualPath = storedFile.path();
-
-        CurriculumDefinition definition = loadDefinition(actualPath, extension);
-        cachedDefinition = definition;
-
-        curriculumFileMapper.selectList(null).forEach(item -> {
-            item.setActive(false);
-            curriculumFileMapper.updateById(item);
-        });
-
-        CurriculumFile curriculumFile = new CurriculumFile();
-        curriculumFile.setId("cur-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-        curriculumFile.setFileName(storedFile.originalName());
-        curriculumFile.setFileType(extension.replace(".", ""));
-        curriculumFile.setFilePath(actualPath.toString());
-        curriculumFile.setVersion(definition.getVersion());
-        curriculumFile.setActive(true);
-        curriculumFile.setUploadedBy(operatorId);
-        curriculumFile.setUploadedAt(LocalDateTime.now());
-        curriculumFileMapper.insert(curriculumFile);
-
-        return UploadResult.builder()
-                .id(curriculumFile.getId())
-                .fileName(curriculumFile.getFileName())
-                .version(curriculumFile.getVersion())
-                .programName(definition.getProgramName())
-                .requiredModules(definition.getRequiredModules().size())
-                .requiredCourses(definition.getRequiredCourses().size())
-                .uploadedAt(curriculumFile.getUploadedAt().toString())
-                .build();
     }
 
     public UploadResult getLatestSummary() {
@@ -114,7 +124,8 @@ public class CurriculumService {
         if (latest == null) {
             throw new RuntimeException("尚未上传培养方案");
         }
-        cachedDefinition = loadDefinition(Path.of(latest.getFilePath()), "." + latest.getFileType().toLowerCase(Locale.ROOT));
+        cachedDefinition = loadDefinition(Path.of(latest.getFilePath()),
+                "." + latest.getFileType().toLowerCase(Locale.ROOT));
         return cachedDefinition;
     }
 
@@ -134,7 +145,8 @@ public class CurriculumService {
     }
 
     private CurriculumDefinition parseExcelDefinition(Path path) {
-        try (InputStream inputStream = Files.newInputStream(path); Workbook workbook = WorkbookFactory.create(inputStream)) {
+        try (InputStream inputStream = Files.newInputStream(path);
+                Workbook workbook = WorkbookFactory.create(inputStream)) {
             DataFormatter formatter = new DataFormatter();
             Sheet sheet = workbook.getSheetAt(0);
             if (sheet == null) {

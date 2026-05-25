@@ -34,17 +34,20 @@ public class ApplicationService {
     private final UserMapper userMapper;
     private final JsonUtils jsonUtils;
     private final ProofGenerationService proofGenerationService;
+    private final AuditLogService auditLogService;
 
     public ApplicationService(ApplicationMapper applicationMapper,
             ApprovalRecordMapper approvalRecordMapper,
             UserMapper userMapper,
             JsonUtils jsonUtils,
-            ProofGenerationService proofGenerationService) {
+            ProofGenerationService proofGenerationService,
+            AuditLogService auditLogService) {
         this.applicationMapper = applicationMapper;
         this.approvalRecordMapper = approvalRecordMapper;
         this.userMapper = userMapper;
         this.jsonUtils = jsonUtils;
         this.proofGenerationService = proofGenerationService;
+        this.auditLogService = auditLogService;
     }
 
     public List<ApplicationVO> listApplications(String status) {
@@ -122,59 +125,65 @@ public class ApplicationService {
 
     @Transactional
     public void auditApplication(Long applicationId, String action, String opinion) {
-        Long approverId = requireUserId();
-        Integer role = UserContext.getRoleId();
-        if (role == null || (role != 1 && role != 2)) {
-            throw new RuntimeException("无审批权限");
-        }
-
-        Application application = applicationMapper.selectById(applicationId);
-        if (application == null) {
-            throw new RuntimeException("申请不存在");
-        }
-
-        int newStatus;
-        if ("pass".equalsIgnoreCase(action)) {
-            if (application.getStatus() != 0) {
-                throw new RuntimeException("当前状态不允许此操作");
+        try {
+            Long approverId = requireUserId();
+            Integer role = UserContext.getRoleId();
+            if (role == null || (role != 1 && role != 2)) {
+                throw new RuntimeException("无审批权限");
             }
-            newStatus = 1;
-        } else if ("reject".equalsIgnoreCase(action)) {
-            if (application.getStatus() != 0) {
-                throw new RuntimeException("当前状态不允许此操作");
-            }
-            newStatus = 2;
-        } else if ("withdraw".equalsIgnoreCase(action)) {
-            if (application.getStatus() != 1 && application.getStatus() != 2) {
-                throw new RuntimeException("只有已通过或已驳回的申请才能撤回");
-            }
-            newStatus = 0;
-        } else {
-            throw new RuntimeException("无效的操作");
-        }
 
-        application.setStatus(newStatus);
-        application.setUpdatedAt(LocalDateTime.now());
-        applicationMapper.updateById(application);
-
-        ApprovalRecord record = new ApprovalRecord();
-        record.setApplicationId(applicationId);
-        record.setApproverId(approverId);
-        record.setStepTitle("管理员审批");
-        record.setStatus(newStatus == 1 ? 1 : newStatus == 2 ? 2 : 3);
-        record.setOpinion(opinion);
-        approvalRecordMapper.insert(record);
-
-        if (newStatus == 1 && supportsProof(application.getTypeKey())) {
-            User applicant = userMapper.selectById(application.getUserId());
-            if (applicant == null) {
-                throw new RuntimeException("申请用户不存在，无法生成证明");
+            Application application = applicationMapper.selectById(applicationId);
+            if (application == null) {
+                throw new RuntimeException("申请不存在");
             }
-            proofGenerationService.generate(
-                    applicationId,
-                    application.getTypeKey(),
-                    applicant,
-                    jsonUtils.toMap(application.getForm()));
+
+            int newStatus;
+            if ("pass".equalsIgnoreCase(action)) {
+                if (application.getStatus() != 0) {
+                    throw new RuntimeException("当前状态不允许此操作");
+                }
+                newStatus = 1;
+            } else if ("reject".equalsIgnoreCase(action)) {
+                if (application.getStatus() != 0) {
+                    throw new RuntimeException("当前状态不允许此操作");
+                }
+                newStatus = 2;
+            } else if ("withdraw".equalsIgnoreCase(action)) {
+                if (application.getStatus() != 1 && application.getStatus() != 2) {
+                    throw new RuntimeException("只有已通过或已驳回的申请才能撤回");
+                }
+                newStatus = 0;
+            } else {
+                throw new RuntimeException("无效的操作");
+            }
+
+            application.setStatus(newStatus);
+            application.setUpdatedAt(LocalDateTime.now());
+            applicationMapper.updateById(application);
+
+            ApprovalRecord record = new ApprovalRecord();
+            record.setApplicationId(applicationId);
+            record.setApproverId(approverId);
+            record.setStepTitle("管理员审批");
+            record.setStatus(newStatus == 1 ? 1 : newStatus == 2 ? 2 : 3);
+            record.setOpinion(opinion);
+            approvalRecordMapper.insert(record);
+
+            if (newStatus == 1 && supportsProof(application.getTypeKey())) {
+                User applicant = userMapper.selectById(application.getUserId());
+                if (applicant == null) {
+                    throw new RuntimeException("申请用户不存在，无法生成证明");
+                }
+                proofGenerationService.generate(
+                        applicationId,
+                        application.getTypeKey(),
+                        applicant,
+                        jsonUtils.toMap(application.getForm()));
+            }
+            auditLogService.success("AUDIT_APPLICATION", applicationId + ":" + action);
+        } catch (RuntimeException e) {
+            auditLogService.failure("AUDIT_APPLICATION", String.valueOf(applicationId), e.getMessage());
+            throw e;
         }
     }
 

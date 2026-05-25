@@ -4,6 +4,7 @@ import cn.edu.ruc.info.entity.Notification;
 import cn.edu.ruc.info.entity.NotificationRead;
 import cn.edu.ruc.info.mapper.NotificationMapper;
 import cn.edu.ruc.info.mapper.NotificationReadMapper;
+import cn.edu.ruc.info.util.JsonUtils;
 import cn.edu.ruc.info.util.UserContext;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +21,8 @@ public class NotificationStudentService {
     private NotificationMapper notificationMapper;
     @Autowired
     private NotificationReadMapper notificationReadMapper;
+    @Autowired
+    private JsonUtils jsonUtils;
 
     public List<NotificationVO> listNotifications(String tag) {
         List<Notification> notifications;
@@ -55,10 +58,23 @@ public class NotificationStudentService {
         if (n == null)
             throw new RuntimeException("通知不存在");
 
-        // 解析 links JSON（暂作字符串处理）
         List<Link> links = new ArrayList<>();
-        // 简单处理：假设 links 为 JSON 数组字符串，如 [{"title":"xxx","url":"xxx"}]
-        // 这里不解析，直接返回空，后续可优化
+        if (n.getLinks() != null && !n.getLinks().isBlank()) {
+            try {
+                List<Map<String, Object>> raw = jsonUtils.toListOfMap(n.getLinks());
+                for (Map<String, Object> item : raw) {
+                    if (item == null) {
+                        continue;
+                    }
+                    String title = item.get("title") == null ? "" : String.valueOf(item.get("title"));
+                    String url = item.get("url") == null ? "" : String.valueOf(item.get("url"));
+                    if (!title.isBlank() || !url.isBlank()) {
+                        links.add(Link.builder().title(title).url(url).build());
+                    }
+                }
+            } catch (RuntimeException ignored) {
+            }
+        }
         return NotificationDetailVO.builder()
                 .id(n.getId())
                 .title(n.getTitle())

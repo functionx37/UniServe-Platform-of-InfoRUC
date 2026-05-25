@@ -29,7 +29,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         String path = request.getRequestURI();
 
         // --------------------------------------------------
-        // 管理端接口：强制登录 + 仅允许角色 1 或 2
+        // 管理端接口：强制登录
         // --------------------------------------------------
         if (path.startsWith("/admin/")) {
             String token = extractToken(request);
@@ -41,7 +41,14 @@ public class AuthInterceptor implements HandlerInterceptor {
             }
 
             Integer role = jwtUtil.getRoleFromToken(token);
-            if (role == null || (role != 1 && role != 2)) {
+            if (role == null || (role != 1 && role != 2 && role != 3)) {
+                response.setStatus(HttpStatus.FORBIDDEN.value());
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"success\":false,\"message\":\"无权限访问\"}");
+                return false;
+            }
+
+            if (role == 3 && isCadreForbiddenPath(path, request.getMethod())) {
                 response.setStatus(HttpStatus.FORBIDDEN.value());
                 response.setContentType("application/json;charset=UTF-8");
                 response.getWriter().write("{\"success\":false,\"message\":\"无权限访问\"}");
@@ -81,5 +88,19 @@ public class AuthInterceptor implements HandlerInterceptor {
             return header.substring(7);
         }
         return null;
+    }
+
+    private boolean isCadreForbiddenPath(String path, String method) {
+        if (path.startsWith("/admin/knowledge") || path.startsWith("/admin/curriculum")
+                || path.startsWith("/admin/import")) {
+            return true;
+        }
+        if (path.equals("/admin/audit") || path.contains("/audit")) {
+            return true;
+        }
+        if (path.startsWith("/admin/push") && !path.endsWith("/preview") && !"GET".equalsIgnoreCase(method)) {
+            return true;
+        }
+        return false;
     }
 }

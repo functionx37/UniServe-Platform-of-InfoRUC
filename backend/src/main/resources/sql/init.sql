@@ -112,8 +112,10 @@ CREATE TABLE transcript_uploads (
     user_id         BIGINT NOT NULL,
     file_name       VARCHAR(255),
     file_id         VARCHAR(100),
+    file_path       VARCHAR(500),
     uploaded_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    parsed          BOOLEAN DEFAULT FALSE
+    parsed          BOOLEAN DEFAULT FALSE,
+    parse_message   VARCHAR(500)
 );
 
 -- 10. 模板文件表 (templates)
@@ -124,6 +126,43 @@ CREATE TABLE templates (
     file_type       VARCHAR(20),
     url             VARCHAR(500),
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 10.1 知识库文档表 (knowledge_documents)
+CREATE TABLE knowledge_documents (
+    id              VARCHAR(50) PRIMARY KEY,
+    title           VARCHAR(255) NOT NULL,
+    file_name       VARCHAR(255) NOT NULL,
+    file_type       VARCHAR(20) NOT NULL,
+    file_path       VARCHAR(500) NOT NULL,
+    source_url      VARCHAR(500),
+    active          BOOLEAN DEFAULT TRUE,
+    uploaded_by     BIGINT,
+    uploaded_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 10.2 培养方案文件表 (curriculum_files)
+CREATE TABLE curriculum_files (
+    id              VARCHAR(50) PRIMARY KEY,
+    file_name       VARCHAR(255) NOT NULL,
+    file_type       VARCHAR(20) NOT NULL,
+    file_path       VARCHAR(500) NOT NULL,
+    version         VARCHAR(100),
+    active          BOOLEAN DEFAULT TRUE,
+    uploaded_by     BIGINT,
+    uploaded_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 10.3 证明文件表 (generated_proofs)
+CREATE TABLE generated_proofs (
+    id              VARCHAR(50) PRIMARY KEY,
+    application_id  BIGINT NOT NULL,
+    user_id         BIGINT NOT NULL,
+    proof_type      VARCHAR(50) NOT NULL,
+    title           VARCHAR(255) NOT NULL,
+    file_name       VARCHAR(255) NOT NULL,
+    file_path       VARCHAR(500) NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 11. 发送日志表 (delivery_logs)

@@ -1,9 +1,13 @@
 spring:
   datasource:
     driver-class-name: com.kingbase8.Driver
-    url: jdbc:kingbase8://localhost:54321/student_db
-    username: system
-    password: 20060618lu
+    url: ${DB_URL:jdbc:kingbase8://localhost:54321/student_db}
+    username: ${DB_USERNAME:system}
+    password: ${DB_PASSWORD:system}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
 
 mybatis-plus:
   configuration:
@@ -13,7 +17,18 @@ mybatis-plus:
 # ========== 自定义加密配置 ==========
 app:
   security:
-    aes-key: ruc2026secretkey            # AES 密钥（必须 16 字节，生产环境请使用更复杂的值）
+    aes-key: ${APP_AES_KEY:ruc2026secretkey}            # AES 密钥（必须 16 字节，生产环境请使用更复杂的值）
   jwt:
-    secret: MyJWT!Secret2026!ForRUC!InfoPlat  # JWT 签名密钥，至少 256 位（32 字节以上）
-    expiration: 86400000               # 有效期：1 天（单位毫秒）
+    secret: ${APP_JWT_SECRET:MyJWT!Secret2026!ForRUC!InfoPlat}  # JWT 签名密钥，至少 256 位（32 字节以上）
+    expiration: ${APP_JWT_EXPIRATION:86400000}               # 有效期：1 天（单位毫秒）
+  storage:
+    root: ${APP_STORAGE_ROOT:data}
+    knowledge-dir: ${APP_KNOWLEDGE_DIR:knowledge-base}
+    curriculum-dir: ${APP_CURRICULUM_DIR:curriculum}
+    transcript-dir: ${APP_TRANSCRIPT_DIR:transcripts}
+    proof-dir: ${APP_PROOF_DIR:generated-proofs}
+  llm:
+    base-url: ${LLM_BASE_URL:}
+    api-token: ${LLM_API_TOKEN:}
+    model: ${LLM_MODEL:gpt-4.1-mini}
+    timeout-ms: ${LLM_TIMEOUT_MS:20000}

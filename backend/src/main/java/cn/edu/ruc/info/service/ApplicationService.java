@@ -4,43 +4,53 @@ import cn.edu.ruc.info.dto.ApplicationRequest;
 import cn.edu.ruc.info.dto.ApplicationVO;
 import cn.edu.ruc.info.entity.Application;
 import cn.edu.ruc.info.entity.ApprovalRecord;
+import cn.edu.ruc.info.entity.GeneratedProof;
+import cn.edu.ruc.info.entity.User;
 import cn.edu.ruc.info.mapper.ApplicationMapper;
 import cn.edu.ruc.info.mapper.ApprovalRecordMapper;
+import cn.edu.ruc.info.mapper.UserMapper;
+import cn.edu.ruc.info.util.JsonUtils;
 import cn.edu.ruc.info.util.UserContext;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Data;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class ApplicationService {
 
-    @Autowired
-    private ApplicationMapper applicationMapper;
-
-    @Autowired
-    private ApprovalRecordMapper approvalRecordMapper;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    // ========== 学生端：列表 ==========
-    public List<ApplicationVO> listApplications(String status) {
-        Long userId = UserContext.getUserId();
-        if (userId == null)
-            throw new RuntimeException("未登录");
+    private final ApplicationMapper applicationMapper;
+    private final ApprovalRecordMapper approvalRecordMapper;
+    private final UserMapper userMapper;
+    private final JsonUtils jsonUtils;
+    private final ProofGenerationService proofGenerationService;
 
+    public ApplicationService(ApplicationMapper applicationMapper,
+            ApprovalRecordMapper approvalRecordMapper,
+            UserMapper userMapper,
+            JsonUtils jsonUtils,
+            ProofGenerationService proofGenerationService) {
+        this.applicationMapper = applicationMapper;
+        this.approvalRecordMapper = approvalRecordMapper;
+        this.userMapper = userMapper;
+        this.jsonUtils = jsonUtils;
+        this.proofGenerationService = proofGenerationService;
+    }
+
+    public List<ApplicationVO> listApplications(String status) {
+        Long userId = requireUserId();
         LambdaQueryWrapper<Application> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Application::getUserId, userId);
-
         if (status != null && !status.equals("全部")) {
             Integer code = statusToCode(status);
             if (code != null) {
@@ -48,18 +58,14 @@ public class ApplicationService {
             }
         }
         wrapper.orderByDesc(Application::getCreatedAt);
-
-        List<Application> list = applicationMapper.selectList(wrapper);
-        return list.stream().map(this::toVO).collect(Collectors.toList());
+        return applicationMapper.selectList(wrapper).stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
     }
 
-    // ========== 学生端：新建 ==========
     public ApplicationVO createApplication(ApplicationRequest request) {
-        Long userId = UserContext.getUserId();
-        if (userId == null)
-            throw new RuntimeException("未登录");
-
-        if (request.getTypeKey() == null || request.getTypeKey().isBlank()) {
+        Long userId = requireUserId();
+        if (!StringUtils.hasText(request.getTypeKey())) {
             throw new RuntimeException("申请类型不能为空");
         }
         if (request.getForm() == null) {
@@ -72,45 +78,31 @@ public class ApplicationService {
         entity.setTypeLabel(typeKeyToLabel(request.getTypeKey()));
         entity.setTitle(typeKeyToLabel(request.getTypeKey()) + "申请");
         entity.setStatus(0);
-
-        try {
-            entity.setForm(objectMapper.writeValueAsString(request.getForm()));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("表单数据序列化失败");
-        }
-
-        entity.setAttachments(request.getAttachments());
-
+        entity.setForm(jsonUtils.toJson(request.getForm()));
+        entity.setAttachments(request.getAttachments() == null ? "[]" : jsonUtils.toJson(request.getAttachments()));
         applicationMapper.insert(entity);
         return toVO(entity);
     }
 
-    // ========== 详情查询（学生/管理员通用，自动权限判断） ==========
     public ApplicationDetailVO getApplicationDetail(Long applicationId) {
-        Application entity = applicationMapper.selectById(applicationId);
-        if (entity == null)
-            throw new RuntimeException("申请不存在");
-
-        Long currentUserId = UserContext.getUserId();
-        Integer currentRole = UserContext.getRoleId();
-
-        // 权限检查：非管理员只能查看自己的申请
-        if ((currentRole == null || (currentRole != 1 && currentRole != 2)) &&
-                !entity.getUserId().equals(currentUserId)) {
-            throw new RuntimeException("无权限查看此申请");
-        }
-
+        Application entity = requireVisibleApplication(applicationId);
         List<ApprovalRecord> records = approvalRecordMapper.selectList(
                 new LambdaQueryWrapper<ApprovalRecord>()
                         .eq(ApprovalRecord::getApplicationId, applicationId)
                         .orderByAsc(ApprovalRecord::getCreatedAt));
 
-        List<ApprovalVO> approvals = records.stream().map(r -> ApprovalVO.builder()
-                .step(r.getStepTitle())
-                .time(r.getCreatedAt() != null ? r.getCreatedAt().format(FORMATTER) : null)
-                .opinion(r.getOpinion())
-                .status(r.getStatus() == 1 ? "通过" : "驳回")
-                .build()).collect(Collectors.toList());
+        GeneratedProof proof = proofGenerationService.findByApplicationId(applicationId);
+        Map<String, Object> form = jsonUtils.toMap(entity.getForm());
+        List<Map<String, Object>> attachments = jsonUtils.toListOfMap(entity.getAttachments());
+        List<ApprovalTimelineNode> approvals = buildApprovals(entity, records, proof);
+        List<ApprovalOpinionVO> approvalOpinions = records.stream()
+                .filter(record -> StringUtils.hasText(record.getOpinion()))
+                .map(record -> ApprovalOpinionVO.builder()
+                        .step(record.getStepTitle())
+                        .time(record.getCreatedAt() == null ? null : record.getCreatedAt().format(FORMATTER))
+                        .opinion(record.getOpinion())
+                        .build())
+                .collect(Collectors.toList());
 
         return ApplicationDetailVO.builder()
                 .id(entity.getId())
@@ -118,38 +110,44 @@ public class ApplicationService {
                 .typeLabel(entity.getTypeLabel())
                 .title(entity.getTitle())
                 .status(codeToStatus(entity.getStatus()))
-                .form(entity.getForm())
-                .attachments(entity.getAttachments())
-                .createdAt(entity.getCreatedAt() != null ? entity.getCreatedAt().format(FORMATTER) : null)
-                .updatedAt(entity.getUpdatedAt() != null ? entity.getUpdatedAt().format(FORMATTER) : null)
+                .form(form)
+                .attachments(attachments)
+                .createdAt(entity.getCreatedAt() == null ? null : entity.getCreatedAt().format(FORMATTER))
+                .updatedAt(entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().format(FORMATTER))
                 .approvals(approvals)
+                .approvalOpinions(approvalOpinions)
+                .result(buildResult(proof))
                 .build();
     }
 
-    // ========== 审批操作（仅管理员可调用） ==========
+    @Transactional
     public void auditApplication(Long applicationId, String action, String opinion) {
-        Long approverId = UserContext.getUserId();
+        Long approverId = requireUserId();
         Integer role = UserContext.getRoleId();
-        if (approverId == null || (role != 1 && role != 2)) {
+        if (role == null || (role != 1 && role != 2)) {
             throw new RuntimeException("无审批权限");
         }
 
         Application application = applicationMapper.selectById(applicationId);
-        if (application == null)
+        if (application == null) {
             throw new RuntimeException("申请不存在");
+        }
 
         int newStatus;
         if ("pass".equalsIgnoreCase(action)) {
-            if (application.getStatus() != 0)
+            if (application.getStatus() != 0) {
                 throw new RuntimeException("当前状态不允许此操作");
+            }
             newStatus = 1;
         } else if ("reject".equalsIgnoreCase(action)) {
-            if (application.getStatus() != 0)
+            if (application.getStatus() != 0) {
                 throw new RuntimeException("当前状态不允许此操作");
+            }
             newStatus = 2;
         } else if ("withdraw".equalsIgnoreCase(action)) {
-            if (application.getStatus() != 1 && application.getStatus() != 2)
+            if (application.getStatus() != 1 && application.getStatus() != 2) {
                 throw new RuntimeException("只有已通过或已驳回的申请才能撤回");
+            }
             newStatus = 0;
         } else {
             throw new RuntimeException("无效的操作");
@@ -159,23 +157,42 @@ public class ApplicationService {
         application.setUpdatedAt(LocalDateTime.now());
         applicationMapper.updateById(application);
 
-        // 写入审批记录
         ApprovalRecord record = new ApprovalRecord();
         record.setApplicationId(applicationId);
         record.setApproverId(approverId);
         record.setStepTitle("管理员审批");
-        if (newStatus == 1) {
-            record.setStatus(1); // 通过
-        } else if (newStatus == 2) {
-            record.setStatus(2); // 驳回
-        } else {
-            record.setStatus(3); // 撤回（用3表示，无明确枚举，暂时这样）
-        }
+        record.setStatus(newStatus == 1 ? 1 : newStatus == 2 ? 2 : 3);
         record.setOpinion(opinion);
         approvalRecordMapper.insert(record);
+
+        if (newStatus == 1 && supportsProof(application.getTypeKey())) {
+            User applicant = userMapper.selectById(application.getUserId());
+            if (applicant == null) {
+                throw new RuntimeException("申请用户不存在，无法生成证明");
+            }
+            proofGenerationService.generate(
+                    applicationId,
+                    application.getTypeKey(),
+                    applicant,
+                    jsonUtils.toMap(application.getForm()));
+        }
     }
 
-    // ========== 辅助方法 ==========
+    public Application requireVisibleApplication(Long applicationId) {
+        Application entity = applicationMapper.selectById(applicationId);
+        if (entity == null) {
+            throw new RuntimeException("申请不存在");
+        }
+
+        Long currentUserId = UserContext.getUserId();
+        Integer currentRole = UserContext.getRoleId();
+        if ((currentRole == null || (currentRole != 1 && currentRole != 2))
+                && !Objects.equals(entity.getUserId(), currentUserId)) {
+            throw new RuntimeException("无权限查看此申请");
+        }
+        return entity;
+    }
+
     private ApplicationVO toVO(Application entity) {
         return ApplicationVO.builder()
                 .id(entity.getId())
@@ -183,11 +200,97 @@ public class ApplicationService {
                 .typeLabel(entity.getTypeLabel())
                 .title(entity.getTitle())
                 .status(codeToStatus(entity.getStatus()))
-                .form(entity.getForm())
-                .attachments(entity.getAttachments())
-                .createdAt(entity.getCreatedAt() != null ? entity.getCreatedAt().format(FORMATTER) : null)
-                .updatedAt(entity.getUpdatedAt() != null ? entity.getUpdatedAt().format(FORMATTER) : null)
+                .form(jsonUtils.toMap(entity.getForm()))
+                .attachments(jsonUtils.toListOfMap(entity.getAttachments()))
+                .createdAt(entity.getCreatedAt() == null ? null : entity.getCreatedAt().format(FORMATTER))
+                .updatedAt(entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().format(FORMATTER))
                 .build();
+    }
+
+    private List<ApprovalTimelineNode> buildApprovals(Application application,
+            List<ApprovalRecord> records,
+            GeneratedProof proof) {
+        ApprovalRecord audit = records.isEmpty() ? null : records.get(records.size() - 1);
+        List<ApprovalTimelineNode> nodes = new ArrayList<>();
+        nodes.add(ApprovalTimelineNode.builder()
+                .key("submit")
+                .title("提交申请")
+                .desc("申请已提交，等待管理员处理")
+                .time(application.getCreatedAt() == null ? null : application.getCreatedAt().format(FORMATTER))
+                .status("done")
+                .build());
+
+        if (application.getStatus() == 0) {
+            nodes.add(ApprovalTimelineNode.builder()
+                    .key("audit")
+                    .title("管理员审批")
+                    .desc("管理员正在审核材料")
+                    .time(audit == null || audit.getCreatedAt() == null ? null : audit.getCreatedAt().format(FORMATTER))
+                    .status("current")
+                    .build());
+            nodes.add(ApprovalTimelineNode.builder()
+                    .key("result")
+                    .title("结果反馈")
+                    .desc("审核完成后将反馈处理结果")
+                    .time(null)
+                    .status("todo")
+                    .build());
+            return nodes;
+        }
+
+        nodes.add(ApprovalTimelineNode.builder()
+                .key("audit")
+                .title("管理员审批")
+                .desc(application.getStatus() == 1 ? "申请已审核通过" : "申请已被驳回")
+                .time(audit == null || audit.getCreatedAt() == null ? null : audit.getCreatedAt().format(FORMATTER))
+                .status("done")
+                .build());
+
+        if (application.getStatus() == 1 && supportsProof(application.getTypeKey())) {
+            nodes.add(ApprovalTimelineNode.builder()
+                    .key("proof")
+                    .title("生成证明")
+                    .desc(proof == null ? "通过后待生成电子证明" : "电子证明已生成，可在详情页下载")
+                    .time(proof == null || proof.getCreatedAt() == null ? null : proof.getCreatedAt().format(FORMATTER))
+                    .status(proof == null ? "current" : "done")
+                    .build());
+        } else {
+            nodes.add(ApprovalTimelineNode.builder()
+                    .key("result")
+                    .title("结果反馈")
+                    .desc(application.getStatus() == 1 ? "申请已处理完成" : "请根据驳回意见补充材料后重新提交")
+                    .time(audit == null || audit.getCreatedAt() == null ? null : audit.getCreatedAt().format(FORMATTER))
+                    .status("done")
+                    .build());
+        }
+        return nodes;
+    }
+
+    private ResultFileVO buildResult(GeneratedProof proof) {
+        if (proof == null) {
+            return null;
+        }
+        String url = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/files/proofs/")
+                .path(proof.getId())
+                .toUriString();
+        return ResultFileVO.builder()
+                .downloadable(true)
+                .title(proof.getFileName())
+                .url(url)
+                .build();
+    }
+
+    private boolean supportsProof(String typeKey) {
+        return "enrollment_cert".equals(typeKey) || "political_cert".equals(typeKey);
+    }
+
+    private Long requireUserId() {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("未登录");
+        }
+        return userId;
     }
 
     private Integer statusToCode(String status) {
@@ -219,7 +322,6 @@ public class ApplicationService {
         };
     }
 
-    // ========== 内部 VO 定义 ==========
     @Data
     @Builder
     public static class ApplicationDetailVO {
@@ -228,19 +330,38 @@ public class ApplicationService {
         private String typeLabel;
         private String title;
         private String status;
-        private String form;
-        private String attachments;
+        private Map<String, Object> form;
+        private List<Map<String, Object>> attachments;
         private String createdAt;
         private String updatedAt;
-        private List<ApprovalVO> approvals;
+        private List<ApprovalTimelineNode> approvals;
+        private List<ApprovalOpinionVO> approvalOpinions;
+        private ResultFileVO result;
     }
 
     @Data
     @Builder
-    public static class ApprovalVO {
+    public static class ApprovalTimelineNode {
+        private String key;
+        private String title;
+        private String desc;
+        private String time;
+        private String status;
+    }
+
+    @Data
+    @Builder
+    public static class ApprovalOpinionVO {
         private String step;
         private String time;
         private String opinion;
-        private String status;
+    }
+
+    @Data
+    @Builder
+    public static class ResultFileVO {
+        private Boolean downloadable;
+        private String title;
+        private String url;
     }
 }

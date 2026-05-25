@@ -11,8 +11,8 @@ public class ApplicationVO {
     private String typeLabel;
     private String title;
     private String status; // 中文状态
-    private String form; // JSON
-    private String attachments; // JSON
+    private Object form; // JSON
+    private Object attachments; // JSON
     private String createdAt;
     private String updatedAt;
 }

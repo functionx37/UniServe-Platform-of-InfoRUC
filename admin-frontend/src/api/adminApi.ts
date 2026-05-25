@@ -60,6 +60,25 @@ export type ImportNotificationRow = {
   status: string
 }
 
+export type KnowledgeDocumentItem = {
+  id: string
+  title: string
+  fileName: string
+  fileType: string
+  sourceUrl?: string
+  uploadedAt?: string
+}
+
+export type CurriculumSummary = {
+  id: string
+  fileName: string
+  version: string
+  programName: string
+  requiredModules: number
+  requiredCourses: number
+  uploadedAt?: string
+}
+
 type DatabaseShape = {
   notifications: PolicyRecord[]
   deliveryLogs: DeliveryLog[]
@@ -68,6 +87,8 @@ type DatabaseShape = {
 }
 
 const STORAGE_KEY = 'rucapp-admin-database'
+const TOKEN_KEY = 'rucapp-admin-token'
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
 
 let memoryDatabase: DatabaseShape | null = null
 
@@ -137,7 +158,7 @@ const matchRecipients = (
 
 export const adminApi = {
   async login(payload: LoginRequest) {
-    return delay<LoginResponse>({
+    const response = await delay<LoginResponse>({
       success: true,
       message: '登录成功',
       data: {
@@ -146,6 +167,10 @@ export const adminApi = {
         displayName: payload.username === 'teacher01' ? '李老师' : '管理员',
       },
     })
+    if (hasLocalStorage()) {
+      window.localStorage.setItem(TOKEN_KEY, response.data.token)
+    }
+    return response
   },
 
   async getDashboard(filter: PushPreviewRequest) {
@@ -299,4 +324,89 @@ export const adminApi = {
       data: true,
     })
   },
+
+  async uploadKnowledgeDocument(file: File, title?: string, sourceUrl?: string) {
+    return uploadFile<KnowledgeDocumentItem>('/admin/knowledge/documents', file, {
+      title,
+      sourceUrl,
+    })
+  },
+
+  async listKnowledgeDocuments() {
+    return request<KnowledgeDocumentItem[]>('/admin/knowledge/documents', {
+      method: 'GET',
+    })
+  },
+
+  async rebuildKnowledgeBase() {
+    return request<{ chunkCount: number }>('/admin/knowledge/rebuild', {
+      method: 'POST',
+      body: {},
+    })
+  },
+
+  async uploadCurriculum(file: File) {
+    return uploadFile<CurriculumSummary>('/admin/curriculum/upload', file)
+  },
+
+  async getLatestCurriculum() {
+    return request<CurriculumSummary>('/admin/curriculum/latest', {
+      method: 'GET',
+    })
+  },
+}
+
+type RequestOptions = {
+  method?: 'GET' | 'POST'
+  body?: unknown
+}
+
+const getToken = () =>
+  hasLocalStorage() ? window.localStorage.getItem(TOKEN_KEY) ?? '' : ''
+
+async function request<T>(path: string, options: RequestOptions): Promise<ApiResponse<T>> {
+  const response = await fetch(buildUrl(path), {
+    method: options.method ?? 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getToken()}`,
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  })
+  const body = (await response.json()) as ApiResponse<T>
+  if (!response.ok || body.success !== true) {
+    throw new Error(body.message || `请求失败：${response.status}`)
+  }
+  return body
+}
+
+async function uploadFile<T>(
+  path: string,
+  file: File,
+  extraFields?: Record<string, string | undefined>,
+): Promise<ApiResponse<T>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  Object.entries(extraFields ?? {}).forEach(([key, value]) => {
+    if (value && value.trim()) {
+      formData.append(key, value.trim())
+    }
+  })
+
+  const response = await fetch(buildUrl(path), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+    body: formData,
+  })
+  const body = (await response.json()) as ApiResponse<T>
+  if (!response.ok || body.success !== true) {
+    throw new Error(body.message || `上传失败：${response.status}`)
+  }
+  return body
+}
+
+function buildUrl(path: string) {
+  return `${API_BASE}${path}`
 }

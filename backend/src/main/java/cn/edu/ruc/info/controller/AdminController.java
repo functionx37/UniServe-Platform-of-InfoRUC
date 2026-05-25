@@ -3,6 +3,7 @@ package cn.edu.ruc.info.controller;
 import cn.edu.ruc.info.common.Result;
 import cn.edu.ruc.info.dto.*;
 import cn.edu.ruc.info.service.AdminService;
+import cn.edu.ruc.info.util.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,6 +51,19 @@ public class AdminController {
         try {
             List<ImportSessionVO> list = adminService.listImportSessions();
             return Result.success(list);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/import/notifications")
+    public Result<?> importNotifications(@RequestBody List<AdminService.ImportNotificationRow> rows,
+            @RequestParam(defaultValue = "notifications.xlsx") String fileName) {
+        try {
+            AdminService.ImportNotificationsResult result = adminService.importNotifications(fileName, rows, UserContext.getUserId());
+            Result<AdminService.ImportNotificationsResult> response = Result.success(result);
+            response.setMessage(result.getMessage());
+            return response;
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

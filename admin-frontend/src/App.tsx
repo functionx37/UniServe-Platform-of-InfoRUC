@@ -44,6 +44,19 @@ function App() {
     '站内消息',
     '邮件',
   ])
+  const [knowledgeMessage, setKnowledgeMessage] = useState('上传 PDF/TXT/MD 后可重建智能问答知识库。')
+  const [curriculumMessage, setCurriculumMessage] = useState('上传 JSON/Excel 培养方案后，学生端学业分析将按最新方案计算。')
+  const [knowledgeDocs, setKnowledgeDocs] = useState<
+    Array<{ id: string; title: string; fileName: string; uploadedAt?: string }>
+  >([])
+  const [curriculumSummary, setCurriculumSummary] = useState<{
+    fileName: string
+    version: string
+    programName: string
+    requiredModules: number
+    requiredCourses: number
+    uploadedAt?: string
+  } | null>(null)
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -63,6 +76,18 @@ function App() {
       setDeliveryLogs(logsResponse.data)
       setImportSessions(sessionsResponse.data)
       setLoadingText('前端已切换为统一 API 层，当前由本地 Mock 接口驱动。')
+      if ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '') {
+        try {
+          const [knowledgeResponse, curriculumResponse] = await Promise.all([
+            adminApi.listKnowledgeDocuments(),
+            adminApi.getLatestCurriculum(),
+          ])
+          setKnowledgeDocs(knowledgeResponse.data)
+          setCurriculumSummary(curriculumResponse.data)
+        } catch {
+          // Ignore optional backend-only panels when API is not ready.
+        }
+      }
     }
 
     void bootstrap()
@@ -218,6 +243,45 @@ function App() {
     } catch (error) {
       setImportMessage(
         `导入失败：${error instanceof Error ? error.message : '文件格式无法识别'}`,
+      )
+    }
+  }
+
+  const handleKnowledgeUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      const uploadResponse = await adminApi.uploadKnowledgeDocument(file)
+      const rebuildResponse = await adminApi.rebuildKnowledgeBase()
+      setKnowledgeDocs((current) => [uploadResponse.data, ...current])
+      setKnowledgeMessage(
+        `${uploadResponse.data.fileName} 上传成功，已重建 ${rebuildResponse.data.chunkCount} 个知识片段。`,
+      )
+      event.target.value = ''
+    } catch (error) {
+      setKnowledgeMessage(
+        `知识库上传失败：${error instanceof Error ? error.message : '未知错误'}`,
+      )
+    }
+  }
+
+  const handleCurriculumUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      const response = await adminApi.uploadCurriculum(file)
+      setCurriculumSummary(response.data)
+      setCurriculumMessage(
+        `${response.data.fileName} 已生效，包含 ${response.data.requiredCourses} 门课程。`,
+      )
+      event.target.value = ''
+    } catch (error) {
+      setCurriculumMessage(
+        `培养方案上传失败：${error instanceof Error ? error.message : '未知错误'}`,
       )
     }
   }
@@ -419,6 +483,25 @@ function App() {
                     ))}
                   </div>
                 </div>
+
+                <div>
+                  <div className="panel-header">
+                    <h3>知识库与培养方案</h3>
+                    <span className="tag">成员 B</span>
+                  </div>
+                  <div className="form-stack">
+                    <label className="upload-box">
+                      <input type="file" accept=".pdf,.txt,.md" onChange={handleKnowledgeUpload} />
+                      <strong>上传政策文档到知识库</strong>
+                      <span>{knowledgeMessage}</span>
+                    </label>
+                    <label className="upload-box">
+                      <input type="file" accept=".json,.xlsx,.xls" onChange={handleCurriculumUpload} />
+                      <strong>上传培养方案文件</strong>
+                      <span>{curriculumMessage}</span>
+                    </label>
+                  </div>
+                </div>
               </section>
 
               <section className="panel">
@@ -453,6 +536,47 @@ function App() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </section>
+
+              <section className="panel two-column">
+                <div>
+                  <div className="panel-header">
+                    <h3>知识库文档</h3>
+                    <span className="tag">{knowledgeDocs.length} 份</span>
+                  </div>
+                  <div className="compact-list">
+                    {knowledgeDocs.length > 0 ? (
+                      knowledgeDocs.map((item) => (
+                        <div key={item.id} className="compact-item">
+                          <strong>{item.title}</strong>
+                          <span>{item.fileName}</span>
+                          <small>{item.uploadedAt || '已上传'}</small>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="muted">尚未从真实后端读取到知识库文档。</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="panel-header">
+                    <h3>当前培养方案</h3>
+                    <span className="tag">{curriculumSummary ? '已生效' : '未配置'}</span>
+                  </div>
+                  {curriculumSummary ? (
+                    <div className="compact-item">
+                      <strong>{curriculumSummary.programName}</strong>
+                      <span>
+                        {curriculumSummary.fileName} / 版本 {curriculumSummary.version}
+                      </span>
+                      <small>
+                        {curriculumSummary.requiredModules} 个模块，{curriculumSummary.requiredCourses} 门课程
+                      </small>
+                    </div>
+                  ) : (
+                    <p className="muted">尚未从真实后端读取到培养方案信息。</p>
+                  )}
                 </div>
               </section>
             </>

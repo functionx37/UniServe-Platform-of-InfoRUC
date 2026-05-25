@@ -12,6 +12,8 @@ public class TranscriptUpload {
     private Long userId;
     private String fileName;
     private String fileId;
+    private String filePath;
     private LocalDateTime uploadedAt;
     private Boolean parsed;
+    private String parseMessage;
 }

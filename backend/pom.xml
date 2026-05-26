@@ -61,11 +61,11 @@
             <version>3.5.5</version>
         </dependency>
 
-        <!-- 人大金仓 Kingbase 驱动 -->
+        <!-- PostgreSQL 驱动，当前默认本地开发使用 -->
         <dependency>
-            <groupId>com.kingbase8</groupId>
-            <artifactId>kingbase8</artifactId>
-            <version>8.6.0</version>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
 		<!-- JWT (jjwt) -->

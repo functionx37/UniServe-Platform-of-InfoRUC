@@ -225,8 +225,8 @@ VALUES ('teacher01', '', 2, '李老师')
 ON CONFLICT (username) DO NOTHING;
 
 -- 学生账号
-INSERT INTO users (username, student_no, real_name, role_id, grade, major)
-VALUES ('20260001', '20260001', '张三', 4, '2026', '信息学院')
+INSERT INTO users (username, password, student_no, real_name, role_id, grade, major)
+VALUES ('20260001', '', '20260001', '张三', 4, '2026', '信息学院')
 ON CONFLICT (username) DO NOTHING;
 
 -- 党团阶段

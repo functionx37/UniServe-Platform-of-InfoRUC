@@ -141,6 +141,25 @@ CREATE TABLE knowledge_documents (
     uploaded_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 10.1.1 知识库切片表 (knowledge_chunks)
+CREATE TABLE knowledge_chunks (
+    id              VARCHAR(50) PRIMARY KEY,
+    document_id     VARCHAR(50) NOT NULL,
+    chunk_index     INT NOT NULL,
+    content         TEXT NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (document_id, chunk_index)
+);
+
+-- 10.1.2 知识库切片向量表 (knowledge_chunk_embeddings)
+CREATE TABLE knowledge_chunk_embeddings (
+    chunk_id        VARCHAR(50) PRIMARY KEY,
+    model           VARCHAR(100) NOT NULL,
+    dim             INT NOT NULL,
+    embedding       TEXT NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 10.2 培养方案文件表 (curriculum_files)
 CREATE TABLE curriculum_files (
     id              VARCHAR(50) PRIMARY KEY,

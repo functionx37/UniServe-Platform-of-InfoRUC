@@ -1,0 +1,18 @@
+$kind: http-request
+url: http://127.0.0.1:8081/auth/login
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"username\": \"teacher01\",\r
+
+    \  \"password\": \"123456\"\r
+
+    }"
+settings:
+  strictSSL: false
+  followRedirects: true
+  disableCookies: false
+  maxResponseSize: 52428800
+order: 1779781863651

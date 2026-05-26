@@ -1,0 +1,37 @@
+{
+  "leave": {
+    "typeKey": "leave",
+    "typeLabel": "请假申请",
+    "fields": [
+      {
+        "key": "leaveType",
+        "label": "请假类型",
+        "type": "select",
+        "required": true,
+        "options": ["事假", "病假", "其他"]
+      },
+      { "key": "leaveStart", "label": "开始时间", "type": "date", "required": true },
+      { "key": "leaveEnd", "label": "结束时间", "type": "date", "required": true },
+      { "key": "reason", "label": "请假原因", "type": "textarea", "required": true },
+      { "key": "attachments", "label": "附件", "type": "fileList", "required": false }
+    ]
+  },
+  "enrollment_cert": {
+    "typeKey": "enrollment_cert",
+    "typeLabel": "在读证明",
+    "fields": [{ "key": "purpose", "label": "用途说明", "type": "textarea", "required": false }]
+  },
+  "political_cert": {
+    "typeKey": "political_cert",
+    "typeLabel": "政治面貌证明",
+    "fields": [
+      {
+        "key": "politicalStatus",
+        "label": "政治面貌",
+        "type": "select",
+        "required": true,
+        "options": ["群众", "共青团员", "中共预备党员", "中共党员"]
+      }
+    ]
+  }
+}

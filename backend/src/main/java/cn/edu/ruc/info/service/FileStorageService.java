@@ -50,6 +50,27 @@ public class FileStorageService {
         return new StoredFile(sanitizedName, target);
     }
 
+    public StoredFile saveLocalFile(Path source, Path directory, String prefix) {
+        if (source == null || !Files.exists(source) || !Files.isRegularFile(source)) {
+            throw new RuntimeException("本地文件不存在");
+        }
+        createDirectory(directory);
+
+        String originalName = source.getFileName() == null ? "upload" : source.getFileName().toString();
+        String sanitizedName = sanitizeFileName(originalName);
+        String extension = getExtension(sanitizedName);
+        String fileName = prefix + "-" + UUID.randomUUID().toString().replace("-", "") + extension;
+        Path target = directory.resolve(fileName).normalize();
+
+        try {
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new RuntimeException("文件保存失败");
+        }
+
+        return new StoredFile(sanitizedName, target);
+    }
+
     public Path resolveKnowledgeDocument(String relativeName) {
         return storagePathHelper.getKnowledgeBasePath().resolve(relativeName).normalize();
     }

@@ -34,4 +34,5 @@ app:
     base-url: ${LLM_BASE_URL:}
     api-token: ${LLM_API_TOKEN:}
     model: ${LLM_MODEL:gpt-4.1-mini}
+    embedding-model: ${LLM_EMBEDDING_MODEL:}
     timeout-ms: ${LLM_TIMEOUT_MS:20000}

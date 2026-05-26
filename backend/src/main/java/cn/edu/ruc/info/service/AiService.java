@@ -5,6 +5,7 @@ import lombok.Data;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -29,7 +30,7 @@ public class AiService {
 
         KnowledgeBaseService.KnowledgeChunk top = chunks.get(0);
         String context = chunks.stream()
-                .map(chunk -> "【来源：" + chunk.getDocumentTitle() + "】\n" + chunk.getText())
+                .map(chunk -> "【来源：" + chunk.getDocumentTitle() + " / 片段#" + chunk.getChunkIndex() + "】\n" + chunk.getText())
                 .reduce((a, b) -> a + "\n\n" + b)
                 .orElse("");
 
@@ -45,12 +46,36 @@ public class AiService {
             answer = "未在已上传政策中找到直接依据，请补充更具体的问题或上传相关政策。";
         }
 
+        List<Evidence> evidences = new ArrayList<>();
+        for (KnowledgeBaseService.KnowledgeChunk chunk : chunks) {
+            evidences.add(Evidence.builder()
+                    .documentTitle(chunk.getDocumentTitle())
+                    .sourceUrl(chunk.getSourceUrl() == null ? "" : chunk.getSourceUrl())
+                    .chunkIndex(chunk.getChunkIndex())
+                    .excerpt(buildExcerpt(chunk.getText()))
+                    .score(chunk.getScore())
+                    .build());
+        }
+
         return AskResponse.builder()
                 .answer(answer.trim())
                 .sourceTitle(top.getDocumentTitle())
                 .sourceUrl(top.getSourceUrl() == null ? "" : top.getSourceUrl())
+                .evidences(evidences)
                 .relatedQuestions(buildRelatedQuestions(question))
                 .build();
+    }
+
+    private String buildExcerpt(String text) {
+        if (!StringUtils.hasText(text)) {
+            return "";
+        }
+        String compact = text.replace("\r", "\n").replaceAll("\n{2,}", "\n").trim();
+        int max = 220;
+        if (compact.length() <= max) {
+            return compact;
+        }
+        return compact.substring(0, max) + "...";
     }
 
     private List<String> buildRelatedQuestions(String question) {
@@ -66,6 +91,17 @@ public class AiService {
         private String answer;
         private String sourceTitle;
         private String sourceUrl;
+        private List<Evidence> evidences;
         private List<String> relatedQuestions;
+    }
+
+    @Data
+    @Builder
+    public static class Evidence {
+        private String documentTitle;
+        private String sourceUrl;
+        private Integer chunkIndex;
+        private String excerpt;
+        private Double score;
     }
 }

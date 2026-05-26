@@ -1,0 +1,10 @@
+# Use this workspace to collaborate
+workspace:
+  id: 0de8f1da-0ca7-4a5a-8ff5-009d96cac0e3
+
+localResources:
+  collections:
+    - ..\test\postman\管理后台接口.postman_collection.json
+  docs:
+    - ..\docs\api\管理后台接口对齐说明.md
+d

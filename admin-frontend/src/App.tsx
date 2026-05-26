@@ -23,7 +23,8 @@ function App() {
   const [importSessions, setImportSessions] = useState<ImportSession[]>([])
   const [previewRecipients, setPreviewRecipients] = useState<StudentRecord[]>([])
   const [teacherName, setTeacherName] = useState('李老师')
-  const [loadingText, setLoadingText] = useState('正在按接口契约加载演示数据...')
+  const [loadingText, setLoadingText] = useState('正在连接后端服务...')
+  const [dataSourceLabel, setDataSourceLabel] = useState('连接中')
   const [dashboard, setDashboard] = useState({
     pendingNotificationCount: 0,
     targetStudentCount: 0,
@@ -60,33 +61,42 @@ function App() {
 
   useEffect(() => {
     const bootstrap = async () => {
-      const [loginResponse, notificationsResponse, logsResponse, sessionsResponse] =
-        await Promise.all([
-          adminApi.login({
-            username: 'teacher01',
-            password: '123456',
-          }),
-          adminApi.listNotifications(),
-          adminApi.listDeliveryLogs(),
-          adminApi.listImportSessions(),
+      try {
+        const [loginResponse, notificationsResponse, logsResponse, sessionsResponse] =
+          await Promise.all([
+            adminApi.login({
+              username: 'teacher01',
+              password: '123456',
+            }),
+            adminApi.listNotifications(),
+            adminApi.listDeliveryLogs(),
+            adminApi.listImportSessions(),
+          ])
+
+        setTeacherName(loginResponse.data.displayName)
+        setPolicies(notificationsResponse.data)
+        setDeliveryLogs(logsResponse.data)
+        setImportSessions(sessionsResponse.data)
+        setLoadingText('已连接到后端真实接口，页面数据来自 Spring Boot 服务。')
+        setDataSourceLabel('真实后端接口')
+
+        const [knowledgeResult, curriculumResult] = await Promise.allSettled([
+          adminApi.listKnowledgeDocuments(),
+          adminApi.getLatestCurriculum(),
         ])
 
-      setTeacherName(loginResponse.data.displayName)
-      setPolicies(notificationsResponse.data)
-      setDeliveryLogs(logsResponse.data)
-      setImportSessions(sessionsResponse.data)
-      setLoadingText('前端已切换为统一 API 层，当前由本地 Mock 接口驱动。')
-      if ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '') {
-        try {
-          const [knowledgeResponse, curriculumResponse] = await Promise.all([
-            adminApi.listKnowledgeDocuments(),
-            adminApi.getLatestCurriculum(),
-          ])
-          setKnowledgeDocs(knowledgeResponse.data)
-          setCurriculumSummary(curriculumResponse.data)
-        } catch {
-          // Ignore optional backend-only panels when API is not ready.
+        if (knowledgeResult.status === 'fulfilled') {
+          setKnowledgeDocs(knowledgeResult.value.data)
         }
+
+        if (curriculumResult.status === 'fulfilled') {
+          setCurriculumSummary(curriculumResult.value.data)
+        }
+      } catch (error) {
+        setLoadingText(
+          `后端连接失败：${error instanceof Error ? error.message : '未知错误'}`,
+        )
+        setDataSourceLabel('后端未连接')
       }
     }
 
@@ -100,13 +110,17 @@ function App() {
         major: selectedMajor,
         identity: selectedIdentity,
       }
-      const [previewResponse, dashboardResponse] = await Promise.all([
-        adminApi.previewPush(filter),
-        adminApi.getDashboard(filter),
-      ])
+      try {
+        const [previewResponse, dashboardResponse] = await Promise.all([
+          adminApi.previewPush(filter),
+          adminApi.getDashboard(filter),
+        ])
 
-      setPreviewRecipients(previewResponse.data.recipients)
-      setDashboard(dashboardResponse.data)
+        setPreviewRecipients(previewResponse.data.recipients)
+        setDashboard(dashboardResponse.data)
+      } catch {
+        setPreviewRecipients([])
+      }
     }
 
     void syncPreviewAndDashboard()
@@ -196,7 +210,7 @@ function App() {
     setPolicies(notificationsResponse.data)
     setDeliveryLogs(logsResponse.data)
     setImportSessions(sessionsResponse.data)
-    setImportMessage('演示数据已重置，当前仍然按接口契约返回统一 JSON。')
+    setImportMessage('已从后端重新拉取通知与导入记录。')
   }
 
   const handleImportFile = async (
@@ -369,7 +383,7 @@ function App() {
           </div>
           <div className="topbar-meta">
             <span>角色：管理老师 / {teacherName}</span>
-            <span>数据源：统一 API 层 + 本地 Mock 实现</span>
+            <span>数据源：{dataSourceLabel}</span>
           </div>
         </header>
 
@@ -411,10 +425,10 @@ function App() {
                     <span className="tag">按优先级排序</span>
                   </div>
                   <ul className="todo-list">
-                    <li>接口说明已沉淀到根目录 `管理后台接口对齐说明.md`。</li>
-                    <li>后端只要按文档实现接口，前端即可无缝切换到真实服务。</li>
-                    <li>角色权限控制需要后端补充 `token` 校验和角色判断。</li>
-                    <li>邮件与站内信通道目前由 Mock 返回，后续接真实服务即可。</li>
+                    <li>当前页面默认通过 `/auth` 和 `/admin` 路径访问真实后端。</li>
+                    <li>本地开发需要同时启动 `backend` 与 `admin-frontend`。</li>
+                    <li>如果页面报 401，请先检查登录接口是否成功返回 `token`。</li>
+                    <li>如果知识库或培养方案为空，请检查数据库与后端上传目录。</li>
                   </ul>
                 </div>
 

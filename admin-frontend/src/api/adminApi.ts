@@ -1,12 +1,8 @@
-import {
-  initialDeliveryLogs,
-  initialImportSessions,
-  initialPolicies,
-  studentDirectory,
-  type DeliveryLog,
-  type ImportSession,
-  type PolicyRecord,
-  type StudentRecord,
+import type {
+  DeliveryLog,
+  ImportSession,
+  PolicyRecord,
+  StudentRecord,
 } from '../mockData'
 
 export type ApiResponse<T> = {
@@ -79,248 +75,106 @@ export type CurriculumSummary = {
   uploadedAt?: string
 }
 
-type DatabaseShape = {
-  notifications: PolicyRecord[]
-  deliveryLogs: DeliveryLog[]
-  importSessions: ImportSession[]
-  students: StudentRecord[]
-}
-
-const STORAGE_KEY = 'rucapp-admin-database'
 const TOKEN_KEY = 'rucapp-admin-token'
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
+type BackendRecipient = {
+  id: number
+  studentNo?: string
+  realName: string
+  grade: string
+  major: string
+  identity: string
+}
 
-let memoryDatabase: DatabaseShape | null = null
+type BackendPushPreviewResponse = {
+  recipients: BackendRecipient[]
+  total: number
+}
 
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-
-const defaultDatabase = (): DatabaseShape => ({
-  notifications: clone(initialPolicies),
-  deliveryLogs: clone(initialDeliveryLogs),
-  importSessions: clone(initialImportSessions),
-  students: clone(studentDirectory),
-})
+type ImportNotificationsResult = {
+  importSession: ImportSession
+  notifications: PolicyRecord[]
+}
 
 const hasLocalStorage = () =>
   typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 
-const readDatabase = (): DatabaseShape => {
-  if (hasLocalStorage()) {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-
-    if (raw) {
-      return JSON.parse(raw) as DatabaseShape
-    }
-
-    const initial = defaultDatabase()
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initial))
-    return initial
-  }
-
-  if (memoryDatabase === null) {
-    memoryDatabase = defaultDatabase()
-  }
-
-  return memoryDatabase
-}
-
-const writeDatabase = (database: DatabaseShape) => {
-  if (hasLocalStorage()) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database))
-    return
-  }
-
-  memoryDatabase = database
-}
-
-const delay = async <T,>(data: ApiResponse<T>, ms = 180) => {
-  await new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-  return data
-}
-
-const matchRecipients = (
-  students: StudentRecord[],
-  filter: PushPreviewRequest,
-) => {
-  return students.filter((student) => {
-    const gradeMatch =
-      filter.grade === '全部' || student.grade === filter.grade
-    const majorMatch =
-      filter.major === '全部' || student.major === filter.major
-    const identityMatch =
-      filter.identity === '全部' || student.identity === filter.identity
-
-    return gradeMatch && majorMatch && identityMatch
-  })
-}
-
 export const adminApi = {
   async login(payload: LoginRequest) {
-    const response = await delay<LoginResponse>({
-      success: true,
-      message: '登录成功',
-      data: {
-        token: `mock-token-${payload.username}`,
-        role: '管理老师',
-        displayName: payload.username === 'teacher01' ? '李老师' : '管理员',
-      },
+    const response = await request<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: payload,
+      withAuth: false,
     })
+
     if (hasLocalStorage()) {
       window.localStorage.setItem(TOKEN_KEY, response.data.token)
     }
+
     return response
   },
 
   async getDashboard(filter: PushPreviewRequest) {
-    const database = readDatabase()
-    const latest = database.importSessions[0]
-    const preview = matchRecipients(database.students, filter)
-
-    return delay<DashboardResponse>({
-      success: true,
-      message: '获取仪表盘数据成功',
-      data: {
-        pendingNotificationCount: database.notifications.filter(
-          (item) => item.status === '待发布',
-        ).length,
-        targetStudentCount: preview.length,
-        recentDeliveryCount: database.deliveryLogs.length,
-        latestImportSuccessRate:
-          latest === undefined || latest.totalRows === 0
-            ? 0
-            : Math.round((latest.successRows / latest.totalRows) * 100),
-      },
+    return request<DashboardResponse>('/admin/dashboard', {
+      method: 'POST',
+      body: filter,
     })
   },
 
   async listNotifications() {
-    const database = readDatabase()
-    return delay<PolicyRecord[]>({
-      success: true,
-      message: '获取通知列表成功',
-      data: database.notifications,
+    return request<PolicyRecord[]>('/admin/notifications', {
+      method: 'GET',
     })
   },
 
   async listDeliveryLogs() {
-    const database = readDatabase()
-    return delay<DeliveryLog[]>({
-      success: true,
-      message: '获取发送日志成功',
-      data: database.deliveryLogs,
+    return request<DeliveryLog[]>('/admin/push/logs', {
+      method: 'GET',
     })
   },
 
   async listImportSessions() {
-    const database = readDatabase()
-    return delay<ImportSession[]>({
-      success: true,
-      message: '获取导入历史成功',
-      data: database.importSessions,
+    return request<ImportSession[]>('/admin/import/sessions', {
+      method: 'GET',
     })
   },
 
   async previewPush(payload: PushPreviewRequest) {
-    const database = readDatabase()
-    const recipients = matchRecipients(database.students, payload)
-
-    return delay<PushPreviewResponse>({
-      success: true,
-      message: '获取推送预览成功',
-      data: {
-        recipients,
-        total: recipients.length,
-      },
+    const response = await request<BackendPushPreviewResponse>('/admin/push/preview', {
+      method: 'POST',
+      body: payload,
     })
+
+    return {
+      ...response,
+      data: {
+        recipients: response.data.recipients.map(mapRecipient),
+        total: response.data.total,
+      },
+    }
   },
 
   async sendPush(payload: SendPushRequest) {
-    const database = readDatabase()
-    const recipients = matchRecipients(database.students, payload)
-    const newLog: DeliveryLog = {
-      id: `delivery-${Date.now()}`,
-      title: payload.title,
-      audience: `${payload.grade} / ${payload.major} / ${payload.identity}`,
-      channels: payload.channels.join('、') || '未选择渠道',
-      sentAt: new Date().toLocaleString('zh-CN', { hour12: false }),
-      count: recipients.length,
-      status: recipients.length > 0 ? '已发送' : '无匹配对象',
-    }
-
-    const nextDatabase: DatabaseShape = {
-      ...database,
-      deliveryLogs: [newLog, ...database.deliveryLogs],
-    }
-    writeDatabase(nextDatabase)
-
-    return delay<DeliveryLog>({
-      success: true,
-      message: '通知发送成功',
-      data: newLog,
+    return request<DeliveryLog>('/admin/push/send', {
+      method: 'POST',
+      body: payload,
     })
   },
 
   async importNotifications(fileName: string, rows: ImportNotificationRow[]) {
-    const database = readDatabase()
-    const validRows: PolicyRecord[] = []
-    let failedRows = 0
-
-    rows.forEach((row, index) => {
-      if (!row.title.trim() || !row.category.trim()) {
-        failedRows += 1
-        return
-      }
-
-      validRows.push({
-        id: `policy-${Date.now()}-${index}`,
-        title: row.title.trim(),
-        category: row.category.trim(),
-        grade: row.grade.trim() || '全部',
-        major: row.major.trim() || '全部',
-        channel: row.channel.trim() || '站内消息',
-        publishAt: row.publishAt.trim() || '待定',
-        status: row.status.trim() || '待发布',
-      })
-    })
-
-    const session: ImportSession = {
-      id: `import-${Date.now()}`,
-      fileName,
-      totalRows: rows.length,
-      successRows: validRows.length,
-      failedRows,
-      importedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
-    }
-
-    const nextDatabase: DatabaseShape = {
-      ...database,
-      notifications: [...validRows, ...database.notifications],
-      importSessions: [session, ...database.importSessions],
-    }
-    writeDatabase(nextDatabase)
-
-    return delay<{
-      importSession: ImportSession
-      notifications: PolicyRecord[]
-    }>({
-      success: true,
-      message: `已导入 ${validRows.length} 行，失败 ${failedRows} 行`,
-      data: {
-        importSession: session,
-        notifications: nextDatabase.notifications,
+    return request<ImportNotificationsResult>(
+      `/admin/import/notifications?fileName=${encodeURIComponent(fileName)}`,
+      {
+        method: 'POST',
+        body: rows,
       },
-    })
+    )
   },
 
   async resetMockData() {
-    const database = defaultDatabase()
-    writeDatabase(database)
-
-    return delay<boolean>({
+    return Promise.resolve<ApiResponse<boolean>>({
       success: true,
-      message: '演示数据已重置',
+      message: '当前已切换到真实后端，可重新拉取最新数据',
       data: true,
     })
   },
@@ -359,21 +213,31 @@ export const adminApi = {
 type RequestOptions = {
   method?: 'GET' | 'POST'
   body?: unknown
+  withAuth?: boolean
 }
 
 const getToken = () =>
   hasLocalStorage() ? window.localStorage.getItem(TOKEN_KEY) ?? '' : ''
 
 async function request<T>(path: string, options: RequestOptions): Promise<ApiResponse<T>> {
+  const headers: Record<string, string> = {}
+  const token = getToken()
+
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (options.withAuth !== false && token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
   const response = await fetch(buildUrl(path), {
     method: options.method ?? 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-    },
+    headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   })
-  const body = (await response.json()) as ApiResponse<T>
+
+  const body = await parseApiResponse<T>(response)
   if (!response.ok || body.success !== true) {
     throw new Error(body.message || `请求失败：${response.status}`)
   }
@@ -395,16 +259,45 @@ async function uploadFile<T>(
 
   const response = await fetch(buildUrl(path), {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
+    headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : undefined,
     body: formData,
   })
-  const body = (await response.json()) as ApiResponse<T>
+
+  const body = await parseApiResponse<T>(response)
   if (!response.ok || body.success !== true) {
     throw new Error(body.message || `上传失败：${response.status}`)
   }
   return body
+}
+
+async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const text = await response.text()
+
+  if (!text.trim()) {
+    return {
+      success: response.ok,
+      message: response.ok ? '操作成功' : `请求失败：${response.status}`,
+      data: undefined as T,
+    }
+  }
+
+  try {
+    return JSON.parse(text) as ApiResponse<T>
+  } catch {
+    throw new Error(`接口返回了非 JSON 响应（HTTP ${response.status}）`)
+  }
+}
+
+function mapRecipient(recipient: BackendRecipient): StudentRecord {
+  const studentId = recipient.studentNo?.trim() || String(recipient.id)
+  return {
+    id: studentId,
+    name: recipient.realName,
+    grade: recipient.grade,
+    major: recipient.major,
+    identity: recipient.identity,
+    email: recipient.studentNo ? `${recipient.studentNo}@ruc.edu.cn` : '',
+  }
 }
 
 function buildUrl(path: string) {

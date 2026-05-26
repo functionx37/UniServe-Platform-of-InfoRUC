@@ -6,9 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/auth': 'http://localhost:8080',
-      '/admin': 'http://localhost:8080',
-      '/files': 'http://localhost:8080',
+      '/auth': 'http://localhost:8081',
+      '/admin': 'http://localhost:8081',
+      '/files': 'http://localhost:8081',
     },
   },
 })

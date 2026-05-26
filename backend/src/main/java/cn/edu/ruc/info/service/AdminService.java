@@ -25,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -843,6 +845,8 @@ public class AdminService {
 
     @lombok.Data
     @lombok.Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class PushFilter {
         private String grade;
         private String major;

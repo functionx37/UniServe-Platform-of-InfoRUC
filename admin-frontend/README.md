@@ -47,6 +47,41 @@ docker run -p 8080:80 rucapp-admin
 http://localhost:8080
 ```
 
+## 宿主机 Nginx 部署
+
+适用于服务器 IP 为 `10.10.0.9`，并希望直接通过 `http://10.10.0.9/` 访问前端的场景。
+
+前置条件：
+
+- 已安装 Node.js 20+、npm、nginx
+- 当前用户可通过 `sudo` 写入 `/var/www` 和 `/etc/nginx`
+
+部署脚本会执行以下操作：
+
+1. 安装依赖并构建前端
+2. 将静态产物发布到公共目录 `/var/www/uniserve-admin`
+3. 安装 nginx 配置 `deploy/nginx/uniserve-admin.conf`
+4. 校验并重载 nginx
+
+执行命令：
+
+```bash
+chmod +x scripts/deploy-to-nginx.sh
+./scripts/deploy-to-nginx.sh
+```
+
+部署完成后访问：
+
+```text
+http://10.10.0.9/
+```
+
+说明：
+
+- SPA 路由已配置 `try_files`，刷新页面不会返回 404
+- `/auth/*`、`/admin/*`、`/files/*` 会反向代理到 `http://127.0.0.1:8081`
+- 若后端不在 `8081`，请同步修改 `deploy/nginx/uniserve-admin.conf`
+
 ## 后续联调点
 
 - 将 `src/mockData.ts` 替换为真实后端接口返回。

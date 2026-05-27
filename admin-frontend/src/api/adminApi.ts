@@ -249,6 +249,13 @@ export const adminApi = {
     })
   },
 
+  async importUsers(rows: any[]) {
+    return request<any>('/admin/users/import', {
+      method: 'POST',
+      body: rows,
+    })
+  },
+
   async updateUser(id: number, payload: any) {
     return request<any>(`/admin/users/${id}`, {
       method: 'PUT',

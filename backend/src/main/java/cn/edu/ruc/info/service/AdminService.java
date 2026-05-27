@@ -356,12 +356,8 @@ public class AdminService {
             user.setIdCard(encryptIfPresent(request.getIdCard()));
 
             String password = trimToNull(request.getPassword());
-            if (roleId == 4) {
-                user.setPassword(password == null ? "" : passwordEncoder.encode(password));
-            } else {
-                String raw = password == null ? "123456" : password;
-                user.setPassword(passwordEncoder.encode(raw));
-            }
+            String rawPassword = password == null ? "123456" : password;
+            user.setPassword(passwordEncoder.encode(rawPassword));
 
             userMapper.insert(user);
             auditLogService.success("CREATE_USER", String.valueOf(user.getId()));

@@ -51,6 +51,18 @@ function App() {
   const [isAppModalOpen, setIsAppModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false)
+  const [newUser, setNewUser] = useState({
+    username: '',
+    realName: '',
+    studentNo: '',
+    grade: '2023级',
+    major: '计算机科学与技术',
+    identity: '普通学生',
+    email: '',
+    phone: '',
+    idCard: ''
+  })
 
   // Initialization
   useEffect(() => {
@@ -270,6 +282,57 @@ function App() {
       alert('密码已重置为 123456')
     } catch (err: any) {
       alert('重置失败: ' + err.message)
+    }
+  }
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      // 自动设置用户名（如果为空则使用学号）
+      const payload = { 
+        ...newUser, 
+        username: newUser.username || newUser.studentNo,
+        roleId: 4 // 固定为学生角色
+      }
+      await adminApi.createUser(payload)
+      alert('学生档案录入成功')
+      setIsAddUserModalOpen(false)
+      setNewUser({
+        username: '', realName: '', studentNo: '', 
+        grade: '2023级', major: '计算机科学与技术', identity: '普通学生',
+        email: '', phone: '', idCard: ''
+      })
+      refreshUsers()
+    } catch (err: any) {
+      alert('录入失败: ' + err.message)
+    }
+  }
+
+  const handleUserImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const buffer = await file.arrayBuffer()
+      const wb = XLSX.read(buffer, { type: 'array' })
+      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]])
+      
+      const rows = data.map(r => ({
+        username: String(r['学号'] || r['用户名'] || '').trim(),
+        realName: String(r['姓名'] || '').trim(),
+        studentNo: String(r['学号'] || '').trim(),
+        grade: String(r['年级'] || '2023级').trim(),
+        major: String(r['专业'] || '计算机科学与技术').trim(),
+        identity: String(r['身份'] || '普通学生').trim(),
+        email: String(r['邮箱'] || '').trim(),
+        phone: String(r['手机号'] || '').trim(),
+        roleId: 4
+      }))
+      
+      await adminApi.importUsers(rows)
+      alert('批量导入指令已发送')
+      refreshUsers()
+    } catch (err: any) {
+      alert('导入失败: ' + err.message)
     }
   }
 
@@ -696,6 +759,11 @@ function App() {
               <div className="panel-header">
                 <h3>学生档案中心</h3>
                 <div style={{ display: 'flex', gap: '12px' }}>
+                  <button className="btn btn-primary" onClick={() => setIsAddUserModalOpen(true)}>➕ 录入学生</button>
+                  <label className="btn btn-ghost">
+                    📥 批量导入
+                    <input type="file" style={{ display: 'none' }} onChange={handleUserImport} accept=".xlsx,.csv" />
+                  </label>
                   <input 
                     className="form-control" 
                     placeholder="搜索姓名/学号/账号..." 
@@ -871,6 +939,66 @@ function App() {
             <div className="modal-footer">
               <button className="btn btn-primary" onClick={() => setIsUserModalOpen(false)}>完成</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isAddUserModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAddUserModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>手动录入学生档案</h3>
+              <button className="btn btn-ghost" onClick={() => setIsAddUserModalOpen(false)}>✕</button>
+            </div>
+            <form onSubmit={handleAddUser}>
+              <div className="modal-body">
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div className="form-group">
+                    <label>姓名 *</label>
+                    <input className="form-control" required value={newUser.realName} onChange={e => setNewUser({...newUser, realName: e.target.value})} placeholder="学生姓名" />
+                  </div>
+                  <div className="form-group">
+                    <label>学号 *</label>
+                    <input className="form-control" required value={newUser.studentNo} onChange={e => setNewUser({...newUser, studentNo: e.target.value})} placeholder="学号 (将作为默认账号)" />
+                  </div>
+                  <div className="form-group">
+                    <label>年级</label>
+                    <select className="form-control" value={newUser.grade} onChange={e => setNewUser({...newUser, grade: e.target.value})}>
+                      {gradeOptions.filter(o => o !== '全部').map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>专业</label>
+                    <select className="form-control" value={newUser.major} onChange={e => setNewUser({...newUser, major: e.target.value})}>
+                      {majorOptions.filter(o => o !== '全部').map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>身份类型</label>
+                    <select className="form-control" value={newUser.identity} onChange={e => setNewUser({...newUser, identity: e.target.value})}>
+                      {identityOptions.filter(o => o !== '全部').map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>电子邮箱</label>
+                    <input className="form-control" type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="可选" />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>手机号码</label>
+                  <input className="form-control" value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} placeholder="可选" />
+                </div>
+                <div className="form-group">
+                  <label>身份证号</label>
+                  <input className="form-control" value={newUser.idCard} onChange={e => setNewUser({...newUser, idCard: e.target.value})} placeholder="可选" />
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)' }}>* 录入后，默认登录密码为 <code>123456</code>。</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setIsAddUserModalOpen(false)}>取消</button>
+                <button type="submit" className="btn btn-primary">确认录入</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

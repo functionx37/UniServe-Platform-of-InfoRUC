@@ -2,6 +2,7 @@ package cn.edu.ruc.info.controller;
 
 import cn.edu.ruc.info.common.Result;
 import cn.edu.ruc.info.dto.*;
+import cn.edu.ruc.info.entity.AuditLog;
 import cn.edu.ruc.info.service.AdminService;
 import cn.edu.ruc.info.service.ApplicationService;
 import cn.edu.ruc.info.util.UserContext;
@@ -188,6 +189,18 @@ public class AdminController {
             String opinion = String.valueOf(body.getOrDefault("opinion", ""));
             applicationService.auditApplication(id, action, opinion);
             return Result.success(null);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/audit/logs")
+    public Result<List<AuditLog>> auditLogs(
+            @RequestParam(required = false) String action,
+            @RequestParam(defaultValue = "20") Integer limit) {
+        try {
+            requireAdminRole();
+            return Result.success(adminService.listAuditLogs(action, limit));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

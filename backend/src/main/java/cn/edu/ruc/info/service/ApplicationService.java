@@ -66,6 +66,27 @@ public class ApplicationService {
                 .collect(Collectors.toList());
     }
 
+    public List<ApplicationVO> listApplicationsForAdmin(String status) {
+        LambdaQueryWrapper<Application> wrapper = new LambdaQueryWrapper<>();
+        if (status != null && !status.equals("全部")) {
+            Integer code = statusToCode(status);
+            if (code != null) {
+                wrapper.eq(Application::getStatus, code);
+            }
+        }
+        wrapper.orderByDesc(Application::getCreatedAt);
+        return applicationMapper.selectList(wrapper).stream()
+                .map(this::toVO)
+                .map(vo -> {
+                    User user = userMapper.selectById(vo.getUserId());
+                    if (user != null) {
+                        vo.setUserName(user.getRealName());
+                    }
+                    return vo;
+                })
+                .collect(Collectors.toList());
+    }
+
     public ApplicationVO createApplication(ApplicationRequest request) {
         Long userId = requireUserId();
         if (!StringUtils.hasText(request.getTypeKey())) {
@@ -209,6 +230,7 @@ public class ApplicationService {
                 .typeLabel(entity.getTypeLabel())
                 .title(entity.getTitle())
                 .status(codeToStatus(entity.getStatus()))
+                .userId(entity.getUserId())
                 .form(jsonUtils.toMap(entity.getForm()))
                 .attachments(jsonUtils.toListOfMap(entity.getAttachments()))
                 .createdAt(entity.getCreatedAt() == null ? null : entity.getCreatedAt().format(FORMATTER))

@@ -3,8 +3,11 @@ package cn.edu.ruc.info.service;
 import cn.edu.ruc.info.entity.AuditLog;
 import cn.edu.ruc.info.mapper.AuditLogMapper;
 import cn.edu.ruc.info.util.UserContext;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
+
+import java.util.List;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +27,10 @@ public class AuditLogService {
     public void failure(String action, String target, String reason) {
         String result = reason == null || reason.isBlank() ? "FAIL" : ("FAIL: " + truncate(reason, 80));
         write(action, target, result);
+    }
+
+    public List<AuditLog> list(LambdaQueryWrapper<AuditLog> wrapper) {
+        return auditLogMapper.selectList(wrapper);
     }
 
     private void write(String action, String target, String result) {

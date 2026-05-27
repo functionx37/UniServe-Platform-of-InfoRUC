@@ -14,6 +14,15 @@ public class AdminApplicationController {
     @Autowired
     private ApplicationService applicationService;
 
+    @GetMapping
+    public Result<?> list(@RequestParam(defaultValue = "全部") String status) {
+        try {
+            return Result.success(applicationService.listApplicationsForAdmin(status));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @GetMapping("/{id}")
     public Result<ApplicationService.ApplicationDetailVO> detail(@PathVariable Long id) {
         try {

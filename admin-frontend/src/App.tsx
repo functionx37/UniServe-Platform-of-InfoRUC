@@ -1,803 +1,532 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
 import './App.css'
 import {
-  categoryOptions,
   channelOptions,
   gradeOptions,
   identityOptions,
   majorOptions,
-  type DeliveryLog,
-  type ImportSession,
-  type PolicyRecord,
-  type StudentRecord,
 } from './mockData'
-import { adminApi, type ImportNotificationRow } from './api/adminApi'
+import { adminApi } from './api/adminApi'
+
+type ViewType = 'dashboard' | 'notifications' | 'push' | 'applications' | 'users' | 'knowledge' | 'curriculum'
 
 function App() {
-  const [activeView, setActiveView] = useState<
-    'dashboard' | 'import' | 'push' | 'qa'
-  >('dashboard')
-  const [policies, setPolicies] = useState<PolicyRecord[]>([])
-  const [deliveryLogs, setDeliveryLogs] = useState<DeliveryLog[]>([])
-  const [importSessions, setImportSessions] = useState<ImportSession[]>([])
-  const [previewRecipients, setPreviewRecipients] = useState<StudentRecord[]>([])
-  const [teacherName, setTeacherName] = useState('李老师')
-  const [loadingText, setLoadingText] = useState('正在连接后端服务...')
-  const [dataSourceLabel, setDataSourceLabel] = useState('连接中')
+  const [activeView, setActiveView] = useState<ViewType>('dashboard')
+  const [teacherName, setTeacherName] = useState('加载中...')
+  const [loading, setLoading] = useState(true)
+  
+  // Data States
   const [dashboard, setDashboard] = useState({
     pendingNotificationCount: 0,
     targetStudentCount: 0,
     recentDeliveryCount: 0,
     latestImportSuccessRate: 0,
   })
-  const [importMessage, setImportMessage] = useState(
-    '支持导入 Excel 或 CSV，系统会按“标题、分类、年级、专业、渠道、发布时间、状态”字段解析。',
-  )
-  const [draftTitle, setDraftTitle] = useState('2026 届实习信息汇总推送')
-  const [draftContent, setDraftContent] = useState(
-    '请相关同学于本周五前完成岗位志愿填报，未按时提交将影响学院统一推荐。',
-  )
-  const [selectedGrade, setSelectedGrade] = useState('2022')
-  const [selectedMajor, setSelectedMajor] = useState('计算机科学与技术')
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [deliveryLogs, setDeliveryLogs] = useState<any[]>([])
+  const [applications, setApplications] = useState<any[]>([])
+  const [knowledgeDocs, setKnowledgeDocs] = useState<any[]>([])
+  const [curriculum, setCurriculum] = useState<any>(null)
+  
+  // Form/UI States
+  const [selectedGrade, setSelectedGrade] = useState('全部')
+  const [selectedMajor, setSelectedMajor] = useState('全部')
   const [selectedIdentity, setSelectedIdentity] = useState('全部')
-  const [selectedChannels, setSelectedChannels] = useState<string[]>([
-    '站内消息',
-    '邮件',
-  ])
-  const [knowledgeMessage, setKnowledgeMessage] = useState('上传 PDF/TXT/MD 后可重建智能问答知识库。')
-  const [curriculumMessage, setCurriculumMessage] = useState('上传 JSON/Excel 培养方案后，学生端学业分析将按最新方案计算。')
-  const [knowledgeDocs, setKnowledgeDocs] = useState<
-    Array<{ id: string; title: string; fileName: string; uploadedAt?: string }>
-  >([])
-  const [curriculumSummary, setCurriculumSummary] = useState<{
-    fileName: string
-    version: string
-    programName: string
-    requiredModules: number
-    requiredCourses: number
-    uploadedAt?: string
-  } | null>(null)
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(['站内消息'])
+  const [pushTitle, setPushTitle] = useState('')
+  const [pushContent, setPushContent] = useState('')
+  const [previewRecipients, setPreviewRecipients] = useState<any[]>([])
+  const [isSyncing, setIsSyncing] = useState(false)
 
+  // Initialization
   useEffect(() => {
-    const bootstrap = async () => {
+    const init = async () => {
       try {
-        const [loginResponse, notificationsResponse, logsResponse, sessionsResponse] =
-          await Promise.all([
-            adminApi.login({
-              username: 'teacher01',
-              password: '123456',
-            }),
-            adminApi.listNotifications(),
-            adminApi.listDeliveryLogs(),
-            adminApi.listImportSessions(),
-          ])
-
-        setTeacherName(loginResponse.data.displayName)
-        setPolicies(notificationsResponse.data)
-        setDeliveryLogs(logsResponse.data)
-        setImportSessions(sessionsResponse.data)
-        setLoadingText('已连接到后端真实接口，页面数据来自 Spring Boot 服务。')
-        setDataSourceLabel('真实后端接口')
-
-        const [knowledgeResult, curriculumResult] = await Promise.allSettled([
-          adminApi.listKnowledgeDocuments(),
-          adminApi.getLatestCurriculum(),
-        ])
-
-        if (knowledgeResult.status === 'fulfilled') {
-          setKnowledgeDocs(knowledgeResult.value.data)
-        }
-
-        if (curriculumResult.status === 'fulfilled') {
-          setCurriculumSummary(curriculumResult.value.data)
-        }
-      } catch (error) {
-        setLoadingText(
-          `后端连接失败：${error instanceof Error ? error.message : '未知错误'}`,
-        )
-        setDataSourceLabel('后端未连接')
+        const loginRes = await adminApi.login({ username: 'teacher01', password: '123456' })
+        setTeacherName(loginRes.data.displayName)
+        await refreshAll()
+      } catch (err) {
+        console.error('Init failed', err)
+      } finally {
+        setLoading(false)
       }
     }
-
-    void bootstrap()
+    init()
   }, [])
 
-  useEffect(() => {
-    const syncPreviewAndDashboard = async () => {
-      const filter = {
-        grade: selectedGrade,
-        major: selectedMajor,
-        identity: selectedIdentity,
-      }
-      try {
-        const [previewResponse, dashboardResponse] = await Promise.all([
-          adminApi.previewPush(filter),
-          adminApi.getDashboard(filter),
-        ])
+  const refreshAll = async () => {
+    setIsSyncing(true)
+    try {
+      const [dashRes, notifyRes, logsRes, appsRes, docsRes, currRes] = await Promise.all([
+        adminApi.getDashboard({ grade: selectedGrade, major: selectedMajor, identity: selectedIdentity }),
+        adminApi.listNotifications(),
+        adminApi.listDeliveryLogs(),
+        adminApi.listApplications('全部'),
+        adminApi.listKnowledgeDocuments(),
+        adminApi.getLatestCurriculum(),
+      ])
+      setDashboard(dashRes.data)
+      setNotifications(notifyRes.data)
+      setDeliveryLogs(logsRes.data)
+      setApplications(appsRes.data)
+      setKnowledgeDocs(docsRes.data)
+      setCurriculum(currRes.data)
+    } catch (err) {
+      console.error('Refresh failed', err)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
-        setPreviewRecipients(previewResponse.data.recipients)
-        setDashboard(dashboardResponse.data)
-      } catch {
+  // Push Preview Sync
+  useEffect(() => {
+    const syncPreview = async () => {
+      if (activeView !== 'push') return
+      try {
+        const res = await adminApi.previewPush({ grade: selectedGrade, major: selectedMajor, identity: selectedIdentity })
+        setPreviewRecipients(res.data.recipients)
+      } catch (err) {
         setPreviewRecipients([])
       }
     }
+    syncPreview()
+  }, [activeView, selectedGrade, selectedMajor, selectedIdentity])
 
-    void syncPreviewAndDashboard()
-  }, [deliveryLogs.length, importSessions.length, selectedGrade, selectedIdentity, selectedMajor])
-
-  const dashboardMetrics = useMemo(
-    () => [
-      {
-        label: '待发布通知',
-        value: dashboard.pendingNotificationCount,
-        helper: '可通过批量导入后统一审核',
-      },
-      {
-        label: '精准触达对象',
-        value: dashboard.targetStudentCount,
-        helper: '由年级、专业、身份标签实时计算',
-      },
-      {
-        label: '近 7 日发送任务',
-        value: dashboard.recentDeliveryCount,
-        helper: '覆盖站内消息、邮件与名单导出',
-      },
-      {
-        label: '最新导入成功率',
-        value: `${dashboard.latestImportSuccessRate}%`,
-        helper: '导入失败行会在页面直接反馈',
-      },
-    ],
-    [dashboard],
-  )
-
-  const toggleChannel = (channel: string) => {
-    setSelectedChannels((current) =>
-      current.includes(channel)
-        ? current.filter((item) => item !== channel)
-        : [...current, channel],
-    )
-  }
-
-  const exportWorkbook = (rows: Record<string, string | number>[], fileName: string) => {
-    const worksheet = XLSX.utils.json_to_sheet(rows)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
-    XLSX.writeFile(workbook, fileName)
-  }
-
-  const downloadTemplate = () => {
-    exportWorkbook(
-      [
-        {
-          标题: '信息学院春季专场招聘会',
-          分类: '就业',
-          年级: '2022',
-          专业: '计算机科学与技术',
-          渠道: '站内消息、邮件',
-          发布时间: '2026-05-05 14:00',
-          状态: '待发布',
-        },
-      ],
-      '信息学院_批量导入模板.xlsx',
-    )
-  }
-
-  const exportPolicies = () => {
-    exportWorkbook(
-      policies.map((item) => ({
-        标题: item.title,
-        分类: item.category,
-        年级: item.grade,
-        专业: item.major,
-        渠道: item.channel,
-        发布时间: item.publishAt,
-        状态: item.status,
-      })),
-      '信息学院_通知导出.xlsx',
-    )
-  }
-
-  const resetMockData = async () => {
-    await adminApi.resetMockData()
-    const [notificationsResponse, logsResponse, sessionsResponse] = await Promise.all([
-      adminApi.listNotifications(),
-      adminApi.listDeliveryLogs(),
-      adminApi.listImportSessions(),
-    ])
-
-    setPolicies(notificationsResponse.data)
-    setDeliveryLogs(logsResponse.data)
-    setImportSessions(sessionsResponse.data)
-    setImportMessage('已从后端重新拉取通知与导入记录。')
-  }
-
-  const handleImportFile = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0]
-
-    if (!file) {
-      return
+  // Handlers
+  const handlePush = async () => {
+    if (!pushTitle || !pushContent) return alert('请填写标题和内容')
+    try {
+      await adminApi.sendPush({
+        title: pushTitle,
+        content: pushContent,
+        grade: selectedGrade,
+        major: selectedMajor,
+        identity: selectedIdentity,
+        channels: selectedChannels,
+      })
+      alert('推送成功')
+      setPushTitle('')
+      setPushContent('')
+      refreshAll()
+    } catch (err: any) {
+      alert('推送失败: ' + err.message)
     }
+  }
 
+  const handleAudit = async (id: number, action: 'pass' | 'reject') => {
+    const opinion = prompt('请输入审批意见（可选）') || ''
+    try {
+      await adminApi.auditApplication(id, action, opinion)
+      alert('操作成功')
+      refreshAll()
+    } catch (err: any) {
+      alert('操作失败: ' + err.message)
+    }
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
     try {
       const buffer = await file.arrayBuffer()
-      const workbook = XLSX.read(buffer, { type: 'array' })
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, {
-        defval: '',
-      })
-
-      if (rawRows.length === 0) {
-        setImportMessage('导入失败：文件内容为空。')
-        return
-      }
-
-      const normalizedRows: ImportNotificationRow[] = rawRows.map((row) => ({
-        title: String(row['标题'] ?? '').trim(),
-        category: String(row['分类'] ?? '').trim(),
-        grade: String(row['年级'] ?? '全部').trim() || '全部',
-        major: String(row['专业'] ?? '全部').trim() || '全部',
-        channel: String(row['渠道'] ?? '站内消息').trim() || '站内消息',
-        publishAt: String(row['发布时间'] ?? '').trim() || '待定',
-        status: String(row['状态'] ?? '待发布').trim() || '待发布',
+      const wb = XLSX.read(buffer, { type: 'array' })
+      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]])
+      
+      const rows = data.map(r => ({
+        title: String(r['标题'] || '').trim(),
+        category: String(r['分类'] || '').trim(),
+        grade: String(r['年级'] || '全部').trim(),
+        major: String(r['专业'] || '全部').trim(),
+        channel: String(r['渠道'] || '站内消息').trim(),
+        publishAt: String(r['发布时间'] || '').trim(),
+        status: String(r['状态'] || '待发布').trim(),
       }))
-
-      const importResponse = await adminApi.importNotifications(
-        file.name,
-        normalizedRows,
-      )
-
-      setPolicies(importResponse.data.notifications)
-      setImportSessions((current) => [importResponse.data.importSession, ...current])
-      setImportMessage(importResponse.message)
-      event.target.value = ''
-    } catch (error) {
-      setImportMessage(
-        `导入失败：${error instanceof Error ? error.message : '文件格式无法识别'}`,
-      )
+      
+      const res = await adminApi.importNotifications(file.name, rows)
+      alert(res.message)
+      refreshAll()
+    } catch (err: any) {
+      alert('导入失败: ' + err.message)
     }
   }
 
-  const handleKnowledgeUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0]
+  const handleKnowledgeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
     if (!file) return
     try {
-      const uploadResponse = await adminApi.uploadKnowledgeDocument(file)
-      const rebuildResponse = await adminApi.rebuildKnowledgeBase()
-      setKnowledgeDocs((current) => [uploadResponse.data, ...current])
-      setKnowledgeMessage(
-        `${uploadResponse.data.fileName} 上传成功，已重建 ${rebuildResponse.data.chunkCount} 个知识片段。`,
-      )
-      event.target.value = ''
-    } catch (error) {
-      setKnowledgeMessage(
-        `知识库上传失败：${error instanceof Error ? error.message : '未知错误'}`,
-      )
+      await adminApi.uploadKnowledgeDocument(file)
+      await adminApi.rebuildKnowledgeBase()
+      alert('知识库更新成功')
+      refreshAll()
+    } catch (err: any) {
+      alert('上传失败: ' + err.message)
     }
   }
 
-  const handleCurriculumUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0]
+  const handleBootstrapKnowledge = async () => {
+    if (!confirm('确定要从服务器 file 目录初始化知识库吗？')) return
+    try {
+      await adminApi.bootstrapKnowledgeBase()
+      alert('知识库初始化指令已发送，请稍后刷新。')
+      refreshAll()
+    } catch (err: any) {
+      alert('初始化失败: ' + err.message)
+    }
+  }
+
+  const handleCurriculumUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
     if (!file) return
     try {
-      const response = await adminApi.uploadCurriculum(file)
-      setCurriculumSummary(response.data)
-      setCurriculumMessage(
-        `${response.data.fileName} 已生效，包含 ${response.data.requiredCourses} 门课程。`,
-      )
-      event.target.value = ''
-    } catch (error) {
-      setCurriculumMessage(
-        `培养方案上传失败：${error instanceof Error ? error.message : '未知错误'}`,
-      )
+      await adminApi.uploadCurriculum(file)
+      alert('培养方案更新成功')
+      refreshAll()
+    } catch (err: any) {
+      alert('上传失败: ' + err.message)
     }
   }
 
-  const handleSendMessage = async () => {
-    if (!draftTitle.trim() || !draftContent.trim()) {
-      return
-    }
-
-    const response = await adminApi.sendPush({
-      title: draftTitle.trim(),
-      content: draftContent.trim(),
-      grade: selectedGrade,
-      major: selectedMajor,
-      identity: selectedIdentity,
-      channels: selectedChannels,
-    })
-
-    setDeliveryLogs((current) => [response.data, ...current])
-  }
-
-  const navItems = [
-    {
-      key: 'dashboard',
-      title: '总览',
-      description: '查看后台运行概况与待办',
-    },
-    {
-      key: 'import',
-      title: '批量导入导出',
-      description: '对应 F-14，处理 Excel/CSV 文件',
-    },
-    {
-      key: 'push',
-      title: '精准推送',
-      description: '对应 F-10 / F-11，按标签触达',
-    },
-    {
-      key: 'qa',
-      title: '联调与测试',
-      description: '接口约定、Postman 与压测说明',
-    },
-  ] as const
+  if (loading) return <div className="loading-overlay"><div className="spinner"></div></div>
 
   return (
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-badge">D</span>
+          <div className="brand-badge">U</div>
           <div>
-            <h1>信息学院管理后台</h1>
-            <p>同学 D 交付版</p>
+            <h1>UniServe Admin</h1>
+            <p>学生事务综合服务平台</p>
           </div>
         </div>
 
         <nav className="nav">
-          {navItems.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={activeView === item.key ? 'nav-item active' : 'nav-item'}
-              onClick={() => setActiveView(item.key)}
-            >
-              <strong>{item.title}</strong>
-              <span>{item.description}</span>
-            </button>
-          ))}
+          <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon="📊" text="工作台总览" />
+          <NavItem active={activeView === 'notifications'} onClick={() => setActiveView('notifications')} icon="📢" text="通知公告管理" />
+          <NavItem active={activeView === 'push'} onClick={() => setActiveView('push')} icon="🎯" text="精准信息推送" />
+          <NavItem active={activeView === 'applications'} onClick={() => setActiveView('applications')} icon="📝" text="事务审批中心" />
+          <NavItem active={activeView === 'users'} onClick={() => setActiveView('users')} icon="👥" text="学生档案管理" />
+          <NavItem active={activeView === 'knowledge'} onClick={() => setActiveView('knowledge')} icon="🧠" text="AI 知识库维护" />
+          <NavItem active={activeView === 'curriculum'} onClick={() => setActiveView('curriculum')} icon="🎓" text="培养方案管理" />
         </nav>
 
-        <section className="sidebar-card">
-          <h2>需求覆盖</h2>
-          <ul>
-            <li>F-10 精准信息推送</li>
-            <li>F-11 多渠道通知发送</li>
-            <li>F-14 数据导入与导出</li>
-          </ul>
-        </section>
+        <div style={{ marginTop: 'auto', padding: '16px', fontSize: '12px', opacity: 0.5 }}>
+          v1.1.0-Release / InfoRUC
+        </div>
       </aside>
 
       <div className="workspace">
         <header className="topbar">
-          <div>
-            <p className="eyebrow">管理员端 / Vue-React 可替换实现</p>
-            <h2>老师用 PC 管理界面原型</h2>
+          <div className="topbar-title">
+            <h2>{getViewTitle(activeView)}</h2>
           </div>
-          <div className="topbar-meta">
-            <span>角色：管理老师 / {teacherName}</span>
-            <span>数据源：{dataSourceLabel}</span>
+          <div className="topbar-user">
+            {isSyncing && <span style={{ fontSize: '12px', color: 'var(--primary)' }}>同步中...</span>}
+            <div className="user-info">
+              <span className="user-name">{teacherName}</span>
+              <span className="user-role">管理老师</span>
+            </div>
+            <button className="btn btn-ghost" onClick={refreshAll}>🔄 刷新</button>
           </div>
         </header>
 
         <main className="content">
           {activeView === 'dashboard' && (
             <>
-              <section className="panel hero-panel">
-                <div>
-                  <p className="eyebrow">项目摘要</p>
-                  <h3>后台侧边栏、导入导出、标签推送已具备演示能力</h3>
-                  <p className="muted">
-                    {loadingText}
-                  </p>
-                </div>
-                <div className="hero-actions">
-                  <button type="button" className="primary-btn" onClick={downloadTemplate}>
-                    下载导入模板
-                  </button>
-                  <button type="button" className="ghost-btn" onClick={exportPolicies}>
-                    导出当前通知
-                  </button>
-                </div>
-              </section>
+              <div className="card-grid">
+                <StatCard label="待审事务" value={applications.filter(a => a.status === '待审核').length} footer="需要尽快处理" />
+                <StatCard label="待发通知" value={dashboard.pendingNotificationCount} footer="已导入待审核" />
+                <StatCard label="活跃学生" value={dashboard.targetStudentCount} footer="当前标签命中数" />
+                <StatCard label="导入成功率" value={`${dashboard.latestImportSuccessRate}%`} footer="最近一次批次" />
+              </div>
 
-              <section className="metric-grid">
-                {dashboardMetrics.map((item) => (
-                  <article key={item.label} className="metric-card">
-                    <span>{item.label}</span>
-                    <strong>{item.value}</strong>
-                    <p>{item.helper}</p>
-                  </article>
-                ))}
-              </section>
-
-              <section className="panel two-column">
-                <div>
+              <div className="grid">
+                <div className="panel">
                   <div className="panel-header">
-                    <h3>待办事项</h3>
-                    <span className="tag">按优先级排序</span>
+                    <h3>最近申请</h3>
+                    <button className="btn btn-ghost" onClick={() => setActiveView('applications')}>更多</button>
                   </div>
-                  <ul className="todo-list">
-                    <li>当前页面默认通过 `/auth` 和 `/admin` 路径访问真实后端。</li>
-                    <li>本地开发需要同时启动 `backend` 与 `admin-frontend`。</li>
-                    <li>如果页面报 401，请先检查登录接口是否成功返回 `token`。</li>
-                    <li>如果知识库或培养方案为空，请检查数据库与后端上传目录。</li>
-                  </ul>
+                  <div className="table-container">
+                    <table>
+                      <thead><tr><th>申请人</th><th>类别</th><th>状态</th></tr></thead>
+                      <tbody>
+                        {applications.slice(0, 5).map(app => (
+                          <tr key={app.id}>
+                            <td>{app.userName || '未知'}</td>
+                            <td>{app.typeLabel}</td>
+                            <td><StatusBadge status={app.status} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-
-                <div>
+                <div className="panel">
                   <div className="panel-header">
-                    <h3>最近发送记录</h3>
-                    <span className="tag">实时预览</span>
+                    <h3>推送日志</h3>
+                    <button className="btn btn-ghost" onClick={() => setActiveView('push')}>更多</button>
                   </div>
-                  <div className="compact-list">
-                    {deliveryLogs.slice(0, 3).map((item) => (
-                      <div key={item.id} className="compact-item">
-                        <strong>{item.title}</strong>
-                        <span>{item.audience}</span>
-                        <small>
-                          {item.channels} / {item.count} 人 / {item.sentAt}
-                        </small>
-                      </div>
-                    ))}
+                  <div className="table-container">
+                    <table>
+                      <thead><tr><th>标题</th><th>对象</th><th>时间</th></tr></thead>
+                      <tbody>
+                        {deliveryLogs.slice(0, 5).map(log => (
+                          <tr key={log.id}>
+                            <td>{log.title}</td>
+                            <td>{log.audience?.split('/')[0] || '全体'}</td>
+                            <td>{log.sentAt?.split(' ')[0] || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              </section>
+              </div>
             </>
           )}
 
-          {activeView === 'import' && (
-            <>
-              <section className="panel two-column">
-                <div>
-                  <div className="panel-header">
-                    <h3>批量导入</h3>
-                    <span className="tag">F-14</span>
-                  </div>
-                  <p className="muted">
-                    兼容 `.xlsx` 和 `.csv`，页面会读取第一张工作表，并按约定字段自动解析。
-                  </p>
-                  <label className="upload-box">
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} />
-                    <strong>点击上传 Excel/CSV</strong>
-                    <span>{importMessage}</span>
+          {activeView === 'notifications' && (
+            <div className="panel">
+              <div className="panel-header">
+                <h3>通知公告列表</h3>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <label className="btn btn-primary">
+                    📤 批量导入
+                    <input type="file" style={{ display: 'none' }} onChange={handleImport} accept=".xlsx,.csv" />
                   </label>
-                  <div className="action-row">
-                    <button type="button" className="primary-btn" onClick={downloadTemplate}>
-                      下载模板
-                    </button>
-                    <button type="button" className="ghost-btn" onClick={exportPolicies}>
-                      导出全部数据
-                    </button>
-                  </div>
                 </div>
+              </div>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr><th>标题</th><th>分类</th><th>范围</th><th>发布时间</th><th>状态</th></tr>
+                  </thead>
+                  <tbody>
+                    {notifications.map(n => (
+                      <tr key={n.id}>
+                        <td>{n.title}</td>
+                        <td><span className="badge badge-info">{n.category}</span></td>
+                        <td>{n.grade} / {n.major}</td>
+                        <td>{n.publishAt}</td>
+                        <td><span className={`badge ${n.status === '已发布' ? 'badge-success' : 'badge-warning'}`}>{n.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-                <div>
-                  <div className="panel-header">
-                    <h3>导入历史</h3>
-                    <span className="tag">含成功率</span>
-                  </div>
-                  <div className="compact-list">
-                    {importSessions.map((item) => (
-                      <div key={item.id} className="compact-item">
-                        <strong>{item.fileName}</strong>
-                        <span>
-                          共 {item.totalRows} 行，成功 {item.successRows} 行，失败{' '}
-                          {item.failedRows} 行
-                        </span>
-                        <small>{item.importedAt}</small>
-                      </div>
+          {activeView === 'push' && (
+            <div className="grid" style={{ gridTemplateColumns: '1fr 1.5fr' }}>
+              <div className="panel">
+                <div className="panel-header"><h3>发送配置</h3></div>
+                <div className="form-group">
+                  <label>目标年级</label>
+                  <select className="form-control" value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}>
+                    {gradeOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>目标专业</label>
+                  <select className="form-control" value={selectedMajor} onChange={e => setSelectedMajor(e.target.value)}>
+                    {majorOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>身份类型</label>
+                  <select className="form-control" value={selectedIdentity} onChange={e => setSelectedIdentity(e.target.value)}>
+                    {identityOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>推送渠道</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    {channelOptions.map(c => (
+                      <label key={c} style={{ fontSize: '14px' }}>
+                        <input type="checkbox" checked={selectedChannels.includes(c)} onChange={e => {
+                          if (e.target.checked) setSelectedChannels([...selectedChannels, c])
+                          else setSelectedChannels(selectedChannels.filter(i => i !== c))
+                        }} /> {c}
+                      </label>
                     ))}
                   </div>
                 </div>
-
-                <div>
-                  <div className="panel-header">
-                    <h3>知识库与培养方案</h3>
-                    <span className="tag">成员 B</span>
-                  </div>
-                  <div className="form-stack">
-                    <label className="upload-box">
-                      <input type="file" accept=".pdf,.txt,.md" onChange={handleKnowledgeUpload} />
-                      <strong>上传政策文档到知识库</strong>
-                      <span>{knowledgeMessage}</span>
-                    </label>
-                    <label className="upload-box">
-                      <input type="file" accept=".json,.xlsx,.xls" onChange={handleCurriculumUpload} />
-                      <strong>上传培养方案文件</strong>
-                      <span>{curriculumMessage}</span>
-                    </label>
-                  </div>
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' }} />
+                <div className="form-group">
+                  <label>消息标题</label>
+                  <input className="form-control" value={pushTitle} onChange={e => setPushTitle(e.target.value)} placeholder="请输入通知标题" />
                 </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-header">
-                  <h3>通知数据表</h3>
-                  <span className="tag">{policies.length} 条记录</span>
+                <div className="form-group">
+                  <label>消息正文</label>
+                  <textarea className="form-control" value={pushContent} onChange={e => setPushContent(e.target.value)} rows={5} placeholder="请输入详细内容..." />
                 </div>
-                <div className="table-wrap">
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={handlePush}>立即发送到 {previewRecipients.length} 人</button>
+              </div>
+              
+              <div className="panel">
+                <div className="panel-header"><h3>命中学生预览 ({previewRecipients.length})</h3></div>
+                <div className="table-container" style={{ maxHeight: '600px' }}>
                   <table>
-                    <thead>
-                      <tr>
-                        <th>标题</th>
-                        <th>分类</th>
-                        <th>年级</th>
-                        <th>专业</th>
-                        <th>渠道</th>
-                        <th>发布时间</th>
-                        <th>状态</th>
-                      </tr>
-                    </thead>
+                    <thead><tr><th>学号</th><th>姓名</th><th>专业</th></tr></thead>
                     <tbody>
-                      {policies.map((item) => (
-                        <tr key={item.id}>
-                          <td>{item.title}</td>
-                          <td>{item.category}</td>
-                          <td>{item.grade}</td>
-                          <td>{item.major}</td>
-                          <td>{item.channel}</td>
-                          <td>{item.publishAt}</td>
-                          <td>{item.status}</td>
+                      {previewRecipients.map(s => (
+                        <tr key={s.id}><td>{s.id}</td><td>{s.name}</td><td>{s.major}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeView === 'applications' && (
+            <div className="panel">
+              <div className="panel-header"><h3>事务审批中心</h3></div>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr><th>申请编号</th><th>申请人</th><th>事务类型</th><th>提交时间</th><th>状态</th><th>操作</th></tr>
+                  </thead>
+                  <tbody>
+                    {applications.map(app => (
+                      <tr key={app.id}>
+                        <td>#{app.id}</td>
+                        <td>{app.userName || '-'}</td>
+                        <td>{app.typeLabel}</td>
+                        <td>{app.createdAt || '-'}</td>
+                        <td><StatusBadge status={app.status} /></td>
+                        <td>
+                          {app.status === '待审核' && (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--success)' }} onClick={() => handleAudit(app.id, 'pass')}>通过</button>
+                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleAudit(app.id, 'reject')}>驳回</button>
+                            </div>
+                          )}
+                          <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => alert('详情功能开发中')}>详情</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeView === 'knowledge' && (
+            <div className="grid">
+              <div className="panel">
+                <div className="panel-header"><h3>知识库文档管理</h3></div>
+                <div className="table-container">
+                  <table>
+                    <thead><tr><th>标题</th><th>文件名</th><th>状态</th></tr></thead>
+                    <tbody>
+                      {knowledgeDocs.map(doc => (
+                        <tr key={doc.id}>
+                          <td>{doc.title}</td>
+                          <td>{doc.fileName}</td>
+                          <td><span className="badge badge-success">已索引</span></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </section>
-
-              <section className="panel two-column">
-                <div>
-                  <div className="panel-header">
-                    <h3>知识库文档</h3>
-                    <span className="tag">{knowledgeDocs.length} 份</span>
-                  </div>
-                  <div className="compact-list">
-                    {knowledgeDocs.length > 0 ? (
-                      knowledgeDocs.map((item) => (
-                        <div key={item.id} className="compact-item">
-                          <strong>{item.title}</strong>
-                          <span>{item.fileName}</span>
-                          <small>{item.uploadedAt || '已上传'}</small>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="muted">尚未从真实后端读取到知识库文档。</p>
-                    )}
-                  </div>
+              </div>
+              <div className="panel">
+                <div className="panel-header"><h3>维护操作</h3></div>
+                <div className="form-group">
+                  <label>上传本地文档 (.pdf, .txt, .md)</label>
+                  <label className="upload-area" style={{ display: 'block' }}>
+                    <input type="file" onChange={handleKnowledgeUpload} />
+                    <div style={{ fontSize: '24px', marginBottom: '8px' }}>📁</div>
+                    <strong>点击或拖拽上传</strong>
+                    <p style={{ fontSize: '12px', color: 'var(--muted)' }}>上传后会自动进行文本切片与向量化</p>
+                  </label>
                 </div>
-                <div>
-                  <div className="panel-header">
-                    <h3>当前培养方案</h3>
-                    <span className="tag">{curriculumSummary ? '已生效' : '未配置'}</span>
-                  </div>
-                  {curriculumSummary ? (
-                    <div className="compact-item">
-                      <strong>{curriculumSummary.programName}</strong>
-                      <span>
-                        {curriculumSummary.fileName} / 版本 {curriculumSummary.version}
-                      </span>
-                      <small>
-                        {curriculumSummary.requiredModules} 个模块，{curriculumSummary.requiredCourses} 门课程
-                      </small>
-                    </div>
-                  ) : (
-                    <p className="muted">尚未从真实后端读取到培养方案信息。</p>
-                  )}
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' }} />
+                <div className="form-group">
+                  <label>服务器目录同步</label>
+                  <p style={{ fontSize: '14px', marginBottom: '12px' }}>扫描服务器 <code>file/</code> 目录下的官方文件并同步到知识库。</p>
+                  <button className="btn btn-ghost" style={{ width: '100%' }} onClick={handleBootstrapKnowledge}>🚀 同步 file/ 目录文件</button>
                 </div>
-              </section>
-            </>
+              </div>
+            </div>
           )}
 
-          {activeView === 'push' && (
-            <>
-              <section className="panel two-column">
-                <div>
-                  <div className="panel-header">
-                    <h3>标签筛选</h3>
-                    <span className="tag">F-10</span>
-                  </div>
-                  <div className="form-grid">
-                    <label>
-                      年级
-                      <select
-                        value={selectedGrade}
-                        onChange={(event) => setSelectedGrade(event.target.value)}
-                      >
-                        {gradeOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      专业
-                      <select
-                        value={selectedMajor}
-                        onChange={(event) => setSelectedMajor(event.target.value)}
-                      >
-                        {majorOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      身份标签
-                      <select
-                        value={selectedIdentity}
-                        onChange={(event) => setSelectedIdentity(event.target.value)}
-                      >
-                        {identityOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      通知分类
-                      <select defaultValue="就业">
-                        {categoryOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="channel-row">
-                    {channelOptions.map((channel) => (
-                      <label key={channel} className="checkbox-card">
-                        <input
-                          type="checkbox"
-                          checked={selectedChannels.includes(channel)}
-                          onChange={() => toggleChannel(channel)}
-                        />
-                        <span>{channel}</span>
-                      </label>
-                    ))}
-                  </div>
+          {activeView === 'curriculum' && (
+            <div className="panel" style={{ maxWidth: '800px', margin: '0 auto' }}>
+              <div className="panel-header"><h3>本科培养方案管理</h3></div>
+              {curriculum ? (
+                <div style={{ marginBottom: '32px', padding: '20px', background: 'var(--bg-workspace)', borderRadius: '12px' }}>
+                  <h4 style={{ margin: '0 0 12px 0' }}>当前生效方案：{curriculum.programName}</h4>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>文件：{curriculum.fileName} (v{curriculum.version})</p>
+                  <p style={{ margin: 0, fontSize: '14px' }}>包含 <strong>{curriculum.requiredCourses}</strong> 门必修课，共 <strong>{curriculum.requiredModules}</strong> 个模块</p>
                 </div>
-
-                <div>
-                  <div className="panel-header">
-                    <h3>命中对象预览</h3>
-                    <span className="tag">{previewRecipients.length} 人</span>
-                  </div>
-                  <div className="student-list">
-                    {previewRecipients.length > 0 ? (
-                      previewRecipients.map((student) => (
-                        <div key={student.id} className="student-item">
-                          <strong>
-                            {student.name} / {student.id}
-                          </strong>
-                          <span>
-                            {student.grade} 级 / {student.major} / {student.identity}
-                          </span>
-                          <small>{student.email}</small>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="muted">当前标签组合没有匹配到学生。</p>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              <section className="panel two-column">
-                <div>
-                  <div className="panel-header">
-                    <h3>消息草稿</h3>
-                    <span className="tag">F-11</span>
-                  </div>
-                  <div className="form-stack">
-                    <label>
-                      标题
-                      <input
-                        value={draftTitle}
-                        onChange={(event) => setDraftTitle(event.target.value)}
-                      />
-                    </label>
-                    <label>
-                      正文
-                      <textarea
-                        rows={6}
-                        value={draftContent}
-                        onChange={(event) => setDraftContent(event.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <button type="button" className="primary-btn" onClick={handleSendMessage}>
-                    发送到匹配对象
-                  </button>
-                </div>
-
-                <div>
-                  <div className="panel-header">
-                    <h3>发送日志</h3>
-                    <span className="tag">可联调后端</span>
-                  </div>
-                  <div className="compact-list">
-                    {deliveryLogs.map((item) => (
-                      <div key={item.id} className="compact-item">
-                        <strong>{item.title}</strong>
-                        <span>{item.audience}</span>
-                        <small>
-                          {item.channels} / {item.count} 人 / {item.status}
-                        </small>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </>
+              ) : (
+                <p className="muted" style={{ textAlign: 'center', padding: '40px' }}>尚未配置培养方案，学生端学业分析将无法使用。</p>
+              )}
+              <div className="form-group">
+                <label>更新培养方案 (支持 .json, .xlsx)</label>
+                <label className="upload-area" style={{ display: 'block' }}>
+                  <input type="file" onChange={handleCurriculumUpload} />
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>📜</div>
+                  <strong>上传新方案文件</strong>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)' }}>系统将按最新上传的文件计算学生修读进度</p>
+                </label>
+              </div>
+            </div>
           )}
 
-          {activeView === 'qa' && (
-            <>
-              <section className="panel two-column">
-                <div>
-                  <div className="panel-header">
-                    <h3>推荐接口</h3>
-                    <span className="tag">联调用</span>
-                  </div>
-                  <div className="api-list">
-                    <code>GET /admin/notifications</code>
-                    <code>POST /admin/import/notifications</code>
-                    <code>GET /admin/export/notifications</code>
-                    <code>POST /admin/push/preview</code>
-                    <code>POST /admin/push/send</code>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="panel-header">
-                    <h3>联调说明</h3>
-                    <span className="tag">给后端 A</span>
-                  </div>
-                  <ul className="todo-list">
-                    <li>统一返回 `{`}"success/message/data"{`}` 结构。</li>
-                    <li>推送预览接口返回命中学生列表与总人数。</li>
-                    <li>导入接口返回成功行、失败行、失败原因和导入批次信息。</li>
-                    <li>发送接口需记录管理员操作日志，满足审计要求。</li>
-                  </ul>
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-header">
-                  <h3>测试建议</h3>
-                  <span className="tag">Postman + k6</span>
-                </div>
-                <ul className="todo-list">
-                  <li>Postman：覆盖登录、推送预览、推送发送、导入导出四类接口。</li>
-                  <li>压力测试：模拟 50~200 并发请求，重点观察标签筛选与消息发送耗时。</li>
-                  <li>异常测试：空标题、空分类、非法文件格式、零匹配对象等边界情况。</li>
-                  <li>安全测试：验证非管理员角色不可调用 `/admin/*` 路径。</li>
-                </ul>
-                <div className="action-row action-row-top">
-                  <button type="button" className="ghost-btn" onClick={resetMockData}>
-                    重置演示数据
-                  </button>
-                </div>
-              </section>
-            </>
+          {activeView === 'users' && (
+            <div className="panel">
+              <div className="panel-header"><h3>学生档案中心</h3></div>
+              <p className="muted" style={{ textAlign: 'center', padding: '100px' }}>档案中心正在进行 Kingbase 数据库迁移优化，暂不可用。</p>
+            </div>
           )}
         </main>
       </div>
     </div>
   )
+}
+
+function NavItem({ active, onClick, icon, text }: { active: boolean, onClick: () => void, icon: string, text: string }) {
+  return (
+    <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>
+      <span className="nav-icon">{icon}</span>
+      <span className="nav-text">{text}</span>
+    </button>
+  )
+}
+
+function StatCard({ label, value, footer }: { label: string, value: string | number, footer: string }) {
+  return (
+    <div className="stat-card">
+      <span className="stat-label">{label}</span>
+      <span className="stat-value">{value}</span>
+      <span className="stat-footer">{footer}</span>
+    </div>
+  )
+}
+
+function StatusBadge({ status }: { status: string | number }) {
+  const s = String(status)
+  if (s === '待审核' || s === '0') return <span className="badge badge-warning">待审核</span>
+  if (s === '已通过' || s === '1') return <span className="badge badge-success">已通过</span>
+  if (s === '已驳回' || s === '2') return <span className="badge badge-danger">已驳回</span>
+  if (s === '已撤回' || s === '3') return <span className="badge badge-info">已撤回</span>
+  return <span className="badge">未知</span>
+}
+
+function getViewTitle(view: ViewType) {
+  switch (view) {
+    case 'dashboard': return '工作台总览'
+    case 'notifications': return '通知公告管理'
+    case 'push': return '精准信息推送'
+    case 'applications': return '事务审批中心'
+    case 'users': return '学生档案管理'
+    case 'knowledge': return 'AI 知识库维护'
+    case 'curriculum': return '培养方案管理'
+  }
 }
 
 export default App

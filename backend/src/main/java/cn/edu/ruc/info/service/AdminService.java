@@ -5,6 +5,7 @@ import cn.edu.ruc.info.dto.DashboardVO;
 import cn.edu.ruc.info.dto.DeliveryLogVO;
 import cn.edu.ruc.info.dto.ImportSessionVO;
 import cn.edu.ruc.info.dto.NotificationVO;
+import cn.edu.ruc.info.entity.AuditLog;
 import cn.edu.ruc.info.entity.DeliveryLog;
 import cn.edu.ruc.info.entity.ImportSession;
 import cn.edu.ruc.info.entity.Notification;
@@ -270,6 +271,16 @@ public class AdminService {
             auditLogService.failure("SEND_PUSH", auditTarget, e.getMessage());
             throw e;
         }
+    }
+
+    public List<AuditLog> listAuditLogs(String action, Integer limit) {
+        LambdaQueryWrapper<AuditLog> wrapper = new LambdaQueryWrapper<>();
+        if (isBlank(action)) {
+            wrapper.eq(AuditLog::getAction, action);
+        }
+        wrapper.orderByDesc(AuditLog::getCreatedAt);
+        wrapper.last("limit " + (limit != null ? limit : 20));
+        return auditLogService.list(wrapper);
     }
 
     public List<UserVO> listUsers(UserQuery query) {

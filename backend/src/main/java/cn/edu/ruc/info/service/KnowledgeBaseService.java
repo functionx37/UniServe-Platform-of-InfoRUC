@@ -93,7 +93,9 @@ public class KnowledgeBaseService {
             document.setActive(true);
             document.setUploadedBy(operatorId);
             document.setUploadedAt(LocalDateTime.now());
-            knowledgeDocumentMapper.insert(document);
+            if (knowledgeDocumentMapper.insert(document) <= 0) {
+                throw new RuntimeException("插入文档失败");
+            }
 
             rebuildIndex();
             auditLogService.success("UPLOAD_KNOWLEDGE_DOC", document.getId());

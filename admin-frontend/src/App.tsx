@@ -192,9 +192,11 @@ function App() {
     if (!file) return
     try {
       await adminApi.uploadKnowledgeDocument(file)
-      await adminApi.rebuildKnowledgeBase()
-      alert('知识库更新成功')
-      refreshAll()
+      // 立即刷新列表，让用户看到文件已上传
+      await refreshAll()
+      // 后台异步重建索引
+      adminApi.rebuildKnowledgeBase().catch(err => console.error('Rebuild failed', err))
+      alert('上传成功，系统正在后台进行 AI 向量化分析...')
     } catch (err: any) {
       alert('上传失败: ' + err.message)
     }

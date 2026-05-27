@@ -1,4 +1,67 @@
-import { adminApi, request, uploadFile } from './adminApi.mock'
+const API_BASE = '/api'
+
+type RequestOptions = {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  body?: unknown
+  withAuth?: boolean
+}
+
+async function request<T>(url: string, options: RequestOptions = {}): Promise<{ success: boolean; message: string; data: T }> {
+  const { method = 'GET', body, withAuth = true } = options
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  if (withAuth) {
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+  }
+
+  const response = await fetch(url.startsWith('http') ? url : `${API_BASE}${url}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  if (response.status === 401) {
+    localStorage.removeItem('token')
+    window.location.reload()
+  }
+
+  const result = await response.json()
+  if (!response.ok) {
+    throw new Error(result.message || '请求失败')
+  }
+
+  return result
+}
+
+async function uploadFile<T>(url: string, file: File): Promise<{ success: boolean; message: string; data: T }> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const token = localStorage.getItem('token')
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(`${API_BASE}${url}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  const result = await response.json()
+  if (!response.ok) {
+    throw new Error(result.message || '上传失败')
+  }
+
+  return result
+}
 
 export interface KnowledgeDocumentItem {
   id: string
@@ -26,8 +89,54 @@ export interface CurriculumSummary {
   uploadedAt: string
 }
 
-export const adminApiExtended = {
-  ...adminApi,
+export const adminApi = {
+  async login(payload: any) {
+    const res = await request<any>('/auth/login', {
+      method: 'POST',
+      body: payload,
+      withAuth: false,
+    })
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token)
+    }
+    return res
+  },
+
+  async getDashboard(query: any) {
+    const params = new URLSearchParams(query)
+    return request<any>(`/admin/dashboard?${params.toString()}`)
+  },
+
+  async listNotifications() {
+    return request<any[]>('/admin/notifications')
+  },
+
+  async importNotifications(fileName: string, rows: any[]) {
+    return request<any>('/admin/notifications/import', {
+      method: 'POST',
+      body: { fileName, rows },
+    })
+  },
+
+  async previewPush(query: any) {
+    const params = new URLSearchParams(query)
+    return request<any>(`/admin/push/preview?${params.toString()}`)
+  },
+
+  async sendPush(payload: any) {
+    return request<any>('/admin/push/send', {
+      method: 'POST',
+      body: payload,
+    })
+  },
+
+  async listDeliveryLogs() {
+    return request<any[]>('/admin/push/logs')
+  },
+
+  async listImportSessions() {
+    return request<any[]>('/admin/import/sessions')
+  },
 
   async listKnowledgeDocuments() {
     return request<KnowledgeDocumentItem[]>('/admin/knowledge/documents', {
@@ -121,5 +230,3 @@ export const adminApiExtended = {
     })
   },
 }
-
-export { adminApiExtended as adminApi }

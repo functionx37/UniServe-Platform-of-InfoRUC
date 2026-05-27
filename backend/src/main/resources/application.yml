@@ -1,11 +1,38 @@
 spring:
   datasource:
-    driver-class-name: com.kingbase8.Driver
-    url: jdbc:kingbase8://localhost:54321/student_db
-    username: system
-    password: 123456
+    driver-class-name: ${DB_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/student_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123456}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+server:
+  port: ${SERVER_PORT:8081}
 
 mybatis-plus:
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # ?? SQL
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 开启 SQL 日志，方便观察验证
     map-underline-to-camel-case: true # ????????
+
+# ========== 自定义加密配置 ==========
+app:
+  security:
+    aes-key: ${APP_AES_KEY:ruc2026secretkey}            # AES 密钥（必须 16 字节，生产环境请使用更复杂的值）
+  jwt:
+    secret: ${APP_JWT_SECRET:MyJWT!Secret2026!ForRUC!InfoPlat}  # JWT 签名密钥，至少 256 位（32 字节以上）
+    expiration: ${APP_JWT_EXPIRATION:86400000}               # 有效期：1 天（单位毫秒）
+  storage:
+    root: ${APP_STORAGE_ROOT:data}
+    knowledge-dir: ${APP_KNOWLEDGE_DIR:knowledge-base}
+    curriculum-dir: ${APP_CURRICULUM_DIR:curriculum}
+    transcript-dir: ${APP_TRANSCRIPT_DIR:transcripts}
+    proof-dir: ${APP_PROOF_DIR:generated-proofs}
+  llm:
+    base-url: ${LLM_BASE_URL:}
+    api-token: ${LLM_API_TOKEN:}
+    model: ${LLM_MODEL:gpt-4.1-mini}
+    embedding-model: ${LLM_EMBEDDING_MODEL:}
+    timeout-ms: ${LLM_TIMEOUT_MS:20000}

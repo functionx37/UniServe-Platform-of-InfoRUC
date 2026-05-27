@@ -1,5 +1,5 @@
-const BASE_URL = ""
-const USE_MOCK = true
+const BASE_URL = "http://127.0.0.1:8081"
+const USE_MOCK = false
 const TIMEOUT = 10000
 
 module.exports = {

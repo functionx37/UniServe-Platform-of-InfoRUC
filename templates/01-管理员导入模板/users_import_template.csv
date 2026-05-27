@@ -1,0 +1,5 @@
+username,password,roleId,realName,studentNo,grade,major,identity,email,phone,idCard
+20260001,,4,张三,20260001,2026,信息学院,普通学生,zhangsan@example.com,,
+20260002,,4,李四,20260002,2026,信息学院,普通学生,lisi@example.com,,
+cadre01,123456,3,王五,,2026,信息学院,骨干,wuwu@example.com,,
+teacher02,123456,2,赵老师,,,信息学院,管理老师,zhaolao@example.com,,

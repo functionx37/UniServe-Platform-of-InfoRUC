@@ -1,302 +1,271 @@
-import {
-  initialDeliveryLogs,
-  initialImportSessions,
-  initialPolicies,
-  studentDirectory,
-  type DeliveryLog,
-  type ImportSession,
-  type PolicyRecord,
-  type StudentRecord,
-} from '../mockData'
+const API_BASE = ''
 
-export type ApiResponse<T> = {
-  success: boolean
-  message: string
-  data: T
+type RequestOptions = {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  body?: unknown
+  withAuth?: boolean
 }
 
-export type LoginRequest = {
-  username: string
-  password: string
-}
+async function request<T>(url: string, options: RequestOptions = {}): Promise<{ success: boolean; message: string; data: T }> {
+  const { method = 'GET', body, withAuth = true } = options
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
 
-export type LoginResponse = {
-  token: string
-  role: string
-  displayName: string
-}
-
-export type PushPreviewRequest = {
-  grade: string
-  major: string
-  identity: string
-}
-
-export type PushPreviewResponse = {
-  recipients: StudentRecord[]
-  total: number
-}
-
-export type SendPushRequest = PushPreviewRequest & {
-  title: string
-  content: string
-  channels: string[]
-}
-
-export type DashboardResponse = {
-  pendingNotificationCount: number
-  targetStudentCount: number
-  recentDeliveryCount: number
-  latestImportSuccessRate: number
-}
-
-export type ImportNotificationRow = {
-  title: string
-  category: string
-  grade: string
-  major: string
-  channel: string
-  publishAt: string
-  status: string
-}
-
-type DatabaseShape = {
-  notifications: PolicyRecord[]
-  deliveryLogs: DeliveryLog[]
-  importSessions: ImportSession[]
-  students: StudentRecord[]
-}
-
-const STORAGE_KEY = 'rucapp-admin-database'
-
-let memoryDatabase: DatabaseShape | null = null
-
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-
-const defaultDatabase = (): DatabaseShape => ({
-  notifications: clone(initialPolicies),
-  deliveryLogs: clone(initialDeliveryLogs),
-  importSessions: clone(initialImportSessions),
-  students: clone(studentDirectory),
-})
-
-const hasLocalStorage = () =>
-  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
-
-const readDatabase = (): DatabaseShape => {
-  if (hasLocalStorage()) {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-
-    if (raw) {
-      return JSON.parse(raw) as DatabaseShape
+  if (withAuth) {
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
-
-    const initial = defaultDatabase()
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initial))
-    return initial
   }
 
-  if (memoryDatabase === null) {
-    memoryDatabase = defaultDatabase()
-  }
-
-  return memoryDatabase
-}
-
-const writeDatabase = (database: DatabaseShape) => {
-  if (hasLocalStorage()) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(database))
-    return
-  }
-
-  memoryDatabase = database
-}
-
-const delay = async <T,>(data: ApiResponse<T>, ms = 180) => {
-  await new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
+  const response = await fetch(url.startsWith('http') ? url : `${API_BASE}${url}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
   })
-  return data
+
+  if (response.status === 401) {
+    localStorage.removeItem('token')
+    window.location.reload()
+  }
+
+  const result = await response.json()
+  if (!response.ok) {
+    throw new Error(result.message || '请求失败')
+  }
+
+  return result
 }
 
-const matchRecipients = (
-  students: StudentRecord[],
-  filter: PushPreviewRequest,
-) => {
-  return students.filter((student) => {
-    const gradeMatch =
-      filter.grade === '全部' || student.grade === filter.grade
-    const majorMatch =
-      filter.major === '全部' || student.major === filter.major
-    const identityMatch =
-      filter.identity === '全部' || student.identity === filter.identity
+async function uploadFile<T>(url: string, file: File): Promise<{ success: boolean; message: string; data: T }> {
+  const formData = new FormData()
+  formData.append('file', file)
 
-    return gradeMatch && majorMatch && identityMatch
+  const token = localStorage.getItem('token')
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(`${API_BASE}${url}`, {
+    method: 'POST',
+    headers,
+    body: formData,
   })
+
+  const result = await response.json()
+  if (!response.ok) {
+    throw new Error(result.message || '上传失败')
+  }
+
+  return result
+}
+
+export interface KnowledgeDocumentItem {
+  id: string
+  title: string
+  fileName: string
+  fileType: string
+  filePath: string
+  sourceUrl: string
+  active: boolean
+  uploadedBy: number
+  uploadedAt: string
+}
+
+export interface CurriculumSummary {
+  id: number
+  programName: string
+  fileName: string
+  fileType: string
+  filePath: string
+  version: string
+  active: boolean
+  requiredCourses: number
+  requiredModules: number
+  uploadedBy: number
+  uploadedAt: string
 }
 
 export const adminApi = {
-  async login(payload: LoginRequest) {
-    return delay<LoginResponse>({
-      success: true,
-      message: '登录成功',
-      data: {
-        token: `mock-token-${payload.username}`,
-        role: '管理老师',
-        displayName: payload.username === 'teacher01' ? '李老师' : '管理员',
-      },
+  async login(payload: any) {
+    const res = await request<any>('/auth/login', {
+      method: 'POST',
+      body: payload,
+      withAuth: false,
     })
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token)
+    }
+    return res
   },
 
-  async getDashboard(filter: PushPreviewRequest) {
-    const database = readDatabase()
-    const latest = database.importSessions[0]
-    const preview = matchRecipients(database.students, filter)
-
-    return delay<DashboardResponse>({
-      success: true,
-      message: '获取仪表盘数据成功',
-      data: {
-        pendingNotificationCount: database.notifications.filter(
-          (item) => item.status === '待发布',
-        ).length,
-        targetStudentCount: preview.length,
-        recentDeliveryCount: database.deliveryLogs.length,
-        latestImportSuccessRate:
-          latest === undefined || latest.totalRows === 0
-            ? 0
-            : Math.round((latest.successRows / latest.totalRows) * 100),
-      },
+  async getDashboard(query: any) {
+    return request<any>('/admin/dashboard', {
+      method: 'POST',
+      body: query,
     })
   },
 
   async listNotifications() {
-    const database = readDatabase()
-    return delay<PolicyRecord[]>({
-      success: true,
-      message: '获取通知列表成功',
-      data: database.notifications,
+    return request<any[]>('/admin/notifications')
+  },
+
+  async deleteNotification(id: string) {
+    return request<boolean>(`/admin/notifications/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async importNotifications(fileName: string, rows: any[]) {
+    return request<any>(`/admin/import/notifications?fileName=${encodeURIComponent(fileName)}`, {
+      method: 'POST',
+      body: rows,
+    })
+  },
+
+  async previewPush(query: any) {
+    return request<any>('/admin/push/preview', {
+      method: 'POST',
+      body: query,
+    })
+  },
+
+  async sendPush(payload: any) {
+    return request<any>('/admin/push/send', {
+      method: 'POST',
+      body: payload,
     })
   },
 
   async listDeliveryLogs() {
-    const database = readDatabase()
-    return delay<DeliveryLog[]>({
-      success: true,
-      message: '获取发送日志成功',
-      data: database.deliveryLogs,
+    return request<any[]>('/admin/push/logs')
+  },
+
+  async deleteDeliveryLog(id: string) {
+    return request<boolean>(`/admin/push/logs/${id}`, {
+      method: 'DELETE',
     })
   },
 
   async listImportSessions() {
-    const database = readDatabase()
-    return delay<ImportSession[]>({
-      success: true,
-      message: '获取导入历史成功',
-      data: database.importSessions,
+    return request<any[]>('/admin/import/sessions')
+  },
+
+  async listKnowledgeDocuments() {
+    return request<KnowledgeDocumentItem[]>('/admin/knowledge/documents', {
+      method: 'GET',
     })
   },
 
-  async previewPush(payload: PushPreviewRequest) {
-    const database = readDatabase()
-    const recipients = matchRecipients(database.students, payload)
+  async uploadKnowledgeDocument(file: File) {
+    return uploadFile<KnowledgeDocumentItem>('/admin/knowledge/documents', file)
+  },
 
-    return delay<PushPreviewResponse>({
-      success: true,
-      message: '获取推送预览成功',
-      data: {
-        recipients,
-        total: recipients.length,
-      },
+  async updateKnowledgeDocument(id: string, payload: { title?: string; sourceUrl?: string; active?: boolean }) {
+    return request<boolean>(`/admin/knowledge/documents/${id}`, {
+      method: 'PUT',
+      body: payload,
     })
   },
 
-  async sendPush(payload: SendPushRequest) {
-    const database = readDatabase()
-    const recipients = matchRecipients(database.students, payload)
-    const newLog: DeliveryLog = {
-      id: `delivery-${Date.now()}`,
-      title: payload.title,
-      audience: `${payload.grade} / ${payload.major} / ${payload.identity}`,
-      channels: payload.channels.join('、') || '未选择渠道',
-      sentAt: new Date().toLocaleString('zh-CN', { hour12: false }),
-      count: recipients.length,
-      status: recipients.length > 0 ? '已发送' : '无匹配对象',
-    }
-
-    const nextDatabase: DatabaseShape = {
-      ...database,
-      deliveryLogs: [newLog, ...database.deliveryLogs],
-    }
-    writeDatabase(nextDatabase)
-
-    return delay<DeliveryLog>({
-      success: true,
-      message: '通知发送成功',
-      data: newLog,
+  async deleteKnowledgeDocument(id: string) {
+    return request<boolean>(`/admin/knowledge/documents/${id}`, {
+      method: 'DELETE',
     })
   },
 
-  async importNotifications(fileName: string, rows: ImportNotificationRow[]) {
-    const database = readDatabase()
-    const validRows: PolicyRecord[] = []
-    let failedRows = 0
-
-    rows.forEach((row, index) => {
-      if (!row.title.trim() || !row.category.trim()) {
-        failedRows += 1
-        return
-      }
-
-      validRows.push({
-        id: `policy-${Date.now()}-${index}`,
-        title: row.title.trim(),
-        category: row.category.trim(),
-        grade: row.grade.trim() || '全部',
-        major: row.major.trim() || '全部',
-        channel: row.channel.trim() || '站内消息',
-        publishAt: row.publishAt.trim() || '待定',
-        status: row.status.trim() || '待发布',
-      })
-    })
-
-    const session: ImportSession = {
-      id: `import-${Date.now()}`,
-      fileName,
-      totalRows: rows.length,
-      successRows: validRows.length,
-      failedRows,
-      importedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
-    }
-
-    const nextDatabase: DatabaseShape = {
-      ...database,
-      notifications: [...validRows, ...database.notifications],
-      importSessions: [session, ...database.importSessions],
-    }
-    writeDatabase(nextDatabase)
-
-    return delay<{
-      importSession: ImportSession
-      notifications: PolicyRecord[]
-    }>({
-      success: true,
-      message: `已导入 ${validRows.length} 行，失败 ${failedRows} 行`,
-      data: {
-        importSession: session,
-        notifications: nextDatabase.notifications,
-      },
+  async rebuildKnowledgeBase() {
+    return request<{ chunkCount: number }>('/admin/knowledge/rebuild', {
+      method: 'POST',
+      body: {},
     })
   },
 
-  async resetMockData() {
-    const database = defaultDatabase()
-    writeDatabase(database)
+  async bootstrapKnowledgeBase(dir?: string) {
+    return request<boolean>(`/admin/knowledge/bootstrap${dir ? `?dir=${encodeURIComponent(dir)}` : ''}`, {
+      method: 'POST',
+    })
+  },
 
-    return delay<boolean>({
-      success: true,
-      message: '演示数据已重置',
-      data: true,
+  async uploadCurriculum(file: File) {
+    return uploadFile<CurriculumSummary>('/admin/curriculum/upload', file)
+  },
+
+  async getLatestCurriculum() {
+    return request<CurriculumSummary>('/admin/curriculum/latest', {
+      method: 'GET',
+    })
+  },
+
+  async deleteCurriculum(id: string) {
+    return request<boolean>(`/admin/curriculum/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async listApplications(status: string = '全部') {
+    return request<any[]>(`/admin/applications?status=${encodeURIComponent(status)}`, {
+      method: 'GET',
+    })
+  },
+
+  async deleteApplication(id: number) {
+    return request<boolean>(`/admin/applications/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async getApplicationDetail(id: number) {
+    return request<any>(`/admin/applications/${id}`, {
+      method: 'GET',
+    })
+  },
+
+  async auditApplication(id: number, action: 'pass' | 'reject' | 'withdraw', opinion: string = '') {
+    return request<boolean>(`/admin/applications/${id}/audit`, {
+      method: 'POST',
+      body: { action, opinion },
+    })
+  },
+
+  async listUsers(query: { roleId?: number; grade?: string; major?: string; keyword?: string }) {
+    const params = new URLSearchParams()
+    if (query.roleId) params.append('roleId', String(query.roleId))
+    if (query.grade) params.append('grade', query.grade)
+    if (query.major) params.append('major', query.major)
+    if (query.keyword) params.append('keyword', query.keyword)
+    return request<any[]>(`/admin/users?${params.toString()}`, {
+      method: 'GET',
+    })
+  },
+
+  async createUser(payload: any) {
+    return request<any>('/admin/users', {
+      method: 'POST',
+      body: payload,
+    })
+  },
+
+  async importUsers(rows: any[]) {
+    return request<any>('/admin/users/import', {
+      method: 'POST',
+      body: rows,
+    })
+  },
+
+  async updateUser(id: number, payload: any) {
+    return request<any>(`/admin/users/${id}`, {
+      method: 'PUT',
+      body: payload,
+    })
+  },
+
+  async deleteUser(id: number) {
+    return request<boolean>(`/admin/users/${id}`, {
+      method: 'DELETE',
     })
   },
 }

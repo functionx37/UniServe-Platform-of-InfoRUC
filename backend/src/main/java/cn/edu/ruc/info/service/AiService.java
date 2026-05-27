@@ -1,0 +1,107 @@
+package cn.edu.ruc.info.service;
+
+import lombok.Builder;
+import lombok.Data;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class AiService {
+
+    private final KnowledgeBaseService knowledgeBaseService;
+    private final LlmClientService llmClientService;
+
+    public AiService(KnowledgeBaseService knowledgeBaseService, LlmClientService llmClientService) {
+        this.knowledgeBaseService = knowledgeBaseService;
+        this.llmClientService = llmClientService;
+    }
+
+    public AskResponse ask(String question) {
+        if (!StringUtils.hasText(question)) {
+            throw new RuntimeException("问题不能为空");
+        }
+        List<KnowledgeBaseService.KnowledgeChunk> chunks = knowledgeBaseService.search(question, 4);
+        if (chunks.isEmpty()) {
+            throw new RuntimeException("未找到可依据的政策材料，请先上传相关政策文档");
+        }
+
+        KnowledgeBaseService.KnowledgeChunk top = chunks.get(0);
+        String context = chunks.stream()
+                .map(chunk -> "【来源：" + chunk.getDocumentTitle() + " / 片段#" + chunk.getChunkIndex() + "】\n" + chunk.getText())
+                .reduce((a, b) -> a + "\n\n" + b)
+                .orElse("");
+
+        String systemPrompt = """
+                你是学院政策问答助手。
+                只能依据给定政策片段回答，不允许补充片段中没有出现的制度细节。
+                如果片段不足以回答，就明确说明“未在已上传政策中找到直接依据”。
+                答案尽量简洁正式。
+                """;
+        String userPrompt = "问题：" + question + "\n\n政策片段：\n" + context;
+        String answer = llmClientService.chat(systemPrompt, userPrompt);
+        if (!StringUtils.hasText(answer)) {
+            answer = "未在已上传政策中找到直接依据，请补充更具体的问题或上传相关政策。";
+        }
+
+        List<Evidence> evidences = new ArrayList<>();
+        for (KnowledgeBaseService.KnowledgeChunk chunk : chunks) {
+            evidences.add(Evidence.builder()
+                    .documentTitle(chunk.getDocumentTitle())
+                    .sourceUrl(chunk.getSourceUrl() == null ? "" : chunk.getSourceUrl())
+                    .chunkIndex(chunk.getChunkIndex())
+                    .excerpt(buildExcerpt(chunk.getText()))
+                    .score(chunk.getScore())
+                    .build());
+        }
+
+        return AskResponse.builder()
+                .answer(answer.trim())
+                .sourceTitle(top.getDocumentTitle())
+                .sourceUrl(top.getSourceUrl() == null ? "" : top.getSourceUrl())
+                .evidences(evidences)
+                .relatedQuestions(buildRelatedQuestions(question))
+                .build();
+    }
+
+    private String buildExcerpt(String text) {
+        if (!StringUtils.hasText(text)) {
+            return "";
+        }
+        String compact = text.replace("\r", "\n").replaceAll("\n{2,}", "\n").trim();
+        int max = 220;
+        if (compact.length() <= max) {
+            return compact;
+        }
+        return compact.substring(0, max) + "...";
+    }
+
+    private List<String> buildRelatedQuestions(String question) {
+        return List.of(
+                question + " 适用于哪些对象？",
+                question + " 需要提交什么材料？",
+                question + " 办理时限和入口是什么？");
+    }
+
+    @Data
+    @Builder
+    public static class AskResponse {
+        private String answer;
+        private String sourceTitle;
+        private String sourceUrl;
+        private List<Evidence> evidences;
+        private List<String> relatedQuestions;
+    }
+
+    @Data
+    @Builder
+    public static class Evidence {
+        private String documentTitle;
+        private String sourceUrl;
+        private Integer chunkIndex;
+        private String excerpt;
+        private Double score;
+    }
+}

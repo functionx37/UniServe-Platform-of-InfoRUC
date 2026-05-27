@@ -54,9 +54,9 @@ public class AdminKnowledgeController {
     }
 
     @DeleteMapping("/documents/{id}")
-    public Result<?> disable(@PathVariable String id) {
+    public Result<?> delete(@PathVariable String id) {
         try {
-            return Result.success(knowledgeBaseService.disableDocument(id));
+            return Result.success(knowledgeBaseService.deleteDocument(id));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

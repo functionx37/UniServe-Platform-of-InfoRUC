@@ -208,6 +208,14 @@ public class ApplicationService {
         }
     }
 
+    @Transactional
+    public void deleteApplication(Long id) {
+        applicationMapper.deleteById(id);
+        // 也删除相关的审批记录
+        approvalRecordMapper.delete(new LambdaQueryWrapper<ApprovalRecord>().eq(ApprovalRecord::getApplicationId, id));
+        auditLogService.success("DELETE_APPLICATION", String.valueOf(id));
+    }
+
     public Application requireVisibleApplication(Long applicationId) {
         Application entity = applicationMapper.selectById(applicationId);
         if (entity == null) {

@@ -147,6 +147,28 @@ public class AdminController {
         }
     }
 
+    @DeleteMapping("/notifications/{id}")
+    public Result<?> deleteNotification(@PathVariable String id) {
+        try {
+            requireAdminRole();
+            adminService.deleteNotification(id);
+            return Result.success(null);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/push/logs/{id}")
+    public Result<?> deleteDeliveryLog(@PathVariable String id) {
+        try {
+            requireAdminRole();
+            adminService.deleteDeliveryLog(id);
+            return Result.success(null);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @PostMapping(value = "/users/import", consumes = "application/json")
     public Result<AdminService.ImportUsersResult> importUsers(@RequestBody List<AdminService.ImportUserRow> rows,
             @RequestParam(defaultValue = "users.xlsx") String fileName) {

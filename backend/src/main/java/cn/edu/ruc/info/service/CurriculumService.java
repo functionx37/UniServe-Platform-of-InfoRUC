@@ -114,6 +114,19 @@ public class CurriculumService {
                 .build();
     }
 
+    public boolean delete(String id) {
+        CurriculumFile file = curriculumFileMapper.selectById(id);
+        if (file == null) return false;
+        
+        fileStorageService.deleteFile(file.getFilePath());
+        curriculumFileMapper.deleteById(id);
+        if (file.getActive()) {
+            cachedDefinition = null;
+        }
+        auditLogService.success("DELETE_CURRICULUM", id);
+        return true;
+    }
+
     public CurriculumDefinition getActiveDefinition() {
         if (cachedDefinition != null) {
             return cachedDefinition;

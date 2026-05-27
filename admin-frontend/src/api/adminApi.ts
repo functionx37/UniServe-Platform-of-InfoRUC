@@ -113,6 +113,12 @@ export const adminApi = {
     return request<any[]>('/admin/notifications')
   },
 
+  async deleteNotification(id: string) {
+    return request<boolean>(`/admin/notifications/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
   async importNotifications(fileName: string, rows: any[]) {
     return request<any>(`/admin/import/notifications?fileName=${encodeURIComponent(fileName)}`, {
       method: 'POST',
@@ -136,6 +142,12 @@ export const adminApi = {
 
   async listDeliveryLogs() {
     return request<any[]>('/admin/push/logs')
+  },
+
+  async deleteDeliveryLog(id: string) {
+    return request<boolean>(`/admin/push/logs/${id}`, {
+      method: 'DELETE',
+    })
   },
 
   async listImportSessions() {
@@ -188,9 +200,21 @@ export const adminApi = {
     })
   },
 
+  async deleteCurriculum(id: string) {
+    return request<boolean>(`/admin/curriculum/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
   async listApplications(status: string = '全部') {
     return request<any[]>(`/admin/applications?status=${encodeURIComponent(status)}`, {
       method: 'GET',
+    })
+  },
+
+  async deleteApplication(id: number) {
+    return request<boolean>(`/admin/applications/${id}`, {
+      method: 'DELETE',
     })
   },
 

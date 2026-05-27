@@ -33,4 +33,13 @@ public class AdminCurriculumController {
             return Result.error(e.getMessage());
         }
     }
+
+    @DeleteMapping("/{id}")
+    public Result<?> delete(@PathVariable String id) {
+        try {
+            return Result.success(curriculumService.delete(id));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
 }

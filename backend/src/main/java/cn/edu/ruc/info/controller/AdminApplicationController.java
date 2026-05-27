@@ -43,4 +43,14 @@ public class AdminApplicationController {
             return Result.error(e.getMessage());
         }
     }
+
+    @DeleteMapping("/{id}")
+    public Result<?> delete(@PathVariable Long id) {
+        try {
+            applicationService.deleteApplication(id);
+            return Result.success(null);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
 }

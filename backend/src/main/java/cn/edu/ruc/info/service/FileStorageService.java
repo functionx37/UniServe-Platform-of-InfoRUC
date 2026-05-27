@@ -87,6 +87,14 @@ public class FileStorageService {
         return storagePathHelper.getProofPath().resolve(relativeName).normalize();
     }
 
+    public void deleteFile(String path) {
+        if (!StringUtils.hasText(path)) return;
+        try {
+            Files.deleteIfExists(Path.of(path));
+        } catch (IOException ignored) {
+        }
+    }
+
     private void createDirectory(Path path) {
         try {
             Files.createDirectories(path);

@@ -242,6 +242,17 @@ public class KnowledgeBaseService {
         return updateDocument(id, request);
     }
 
+    public boolean deleteDocument(String id) {
+        KnowledgeDocument document = knowledgeDocumentMapper.selectById(id);
+        if (document == null) return false;
+        
+        fileStorageService.deleteFile(document.getFilePath());
+        knowledgeDocumentMapper.deleteById(id);
+        rebuildIndex();
+        auditLogService.success("DELETE_KNOWLEDGE_DOC", id);
+        return true;
+    }
+
     public int rebuildIndex() {
         try {
             List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(

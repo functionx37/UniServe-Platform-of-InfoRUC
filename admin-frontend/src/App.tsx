@@ -44,6 +44,8 @@ function App() {
   const [pushContent, setPushContent] = useState('')
   const [previewRecipients, setPreviewRecipients] = useState<any[]>([])
   const [isSyncing, setIsSyncing] = useState(false)
+  const [selectedApp, setSelectedApp] = useState<any>(null)
+  const [isAppModalOpen, setIsAppModalOpen] = useState(false)
 
   // Initialization
   useEffect(() => {
@@ -155,9 +157,72 @@ function App() {
     try {
       await adminApi.auditApplication(id, action, opinion)
       alert('操作成功')
+      if (selectedApp && selectedApp.id === id) {
+        handleViewDetail(id) // 刷新详情
+      }
       refreshAll()
     } catch (err: any) {
       alert('操作失败: ' + err.message)
+    }
+  }
+
+  const handleViewDetail = async (id: number) => {
+    try {
+      const res = await adminApi.getApplicationDetail(id)
+      setSelectedApp(res.data)
+      setIsAppModalOpen(true)
+    } catch (err: any) {
+      alert('获取详情失败: ' + err.message)
+    }
+  }
+
+  const handleDeleteApplication = async (id: number) => {
+    if (!confirm('确定要删除这条申请记录吗？')) return
+    try {
+      await adminApi.deleteApplication(id)
+      refreshAll()
+    } catch (err: any) {
+      alert('删除失败: ' + err.message)
+    }
+  }
+
+  const handleDeleteNotification = async (id: string) => {
+    if (!confirm('确定要删除这条通知吗？')) return
+    try {
+      await adminApi.deleteNotification(id)
+      refreshAll()
+    } catch (err: any) {
+      alert('删除失败: ' + err.message)
+    }
+  }
+
+  const handleDeleteKnowledge = async (id: string) => {
+    if (!confirm('确定要删除这个文档吗？')) return
+    try {
+      await adminApi.deleteKnowledgeDocument(id)
+      refreshAll()
+    } catch (err: any) {
+      alert('删除失败: ' + err.message)
+    }
+  }
+
+  const handleDeleteCurriculum = async (id: string) => {
+    if (!confirm('确定要删除这个培养方案吗？')) return
+    try {
+      await adminApi.deleteCurriculum(id)
+      refreshAll()
+    } catch (err: any) {
+      alert('删除失败: ' + err.message)
+    }
+  }
+
+  const handleDeletePushLog = async (id: string) => {
+    if (!confirm('确定要删除这条推送记录吗？')) return
+    try {
+      await adminApi.deleteDeliveryLog(id)
+      refreshAll()
+    } catch (err: any) {
+      alert('删除失败: ' + err.message)
     }
   }
 
@@ -351,13 +416,16 @@ function App() {
                   </div>
                   <div className="table-container">
                     <table>
-                      <thead><tr><th>标题</th><th>对象</th><th>时间</th></tr></thead>
+                      <thead><tr><th>标题</th><th>对象</th><th>时间</th><th>操作</th></tr></thead>
                       <tbody>
                         {deliveryLogs.slice(0, 5).map(log => (
                           <tr key={log.id}>
                             <td>{log.title}</td>
                             <td>{log.audience?.split('/')[0] || '全体'}</td>
                             <td>{log.sentAt?.split(' ')[0] || '-'}</td>
+                            <td>
+                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeletePushLog(log.id)}>删除</button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -382,7 +450,7 @@ function App() {
               <div className="table-container">
                 <table>
                   <thead>
-                    <tr><th>标题</th><th>分类</th><th>范围</th><th>发布时间</th><th>状态</th></tr>
+                    <tr><th>标题</th><th>分类</th><th>范围</th><th>发布时间</th><th>状态</th><th>操作</th></tr>
                   </thead>
                   <tbody>
                     {notifications.map(n => (
@@ -392,6 +460,9 @@ function App() {
                         <td>{n.grade} / {n.major}</td>
                         <td>{n.publishAt}</td>
                         <td><span className={`badge ${n.status === '已发布' ? 'badge-success' : 'badge-warning'}`}>{n.status}</span></td>
+                        <td>
+                          <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteNotification(n.id)}>删除</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -480,13 +551,16 @@ function App() {
                         <td>{app.createdAt || '-'}</td>
                         <td><StatusBadge status={app.status} /></td>
                         <td>
-                          {(String(app.status) === '待审核' || app.status === 0) && (
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--success)' }} onClick={() => handleAudit(app.id, 'pass')}>通过</button>
-                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleAudit(app.id, 'reject')}>驳回</button>
-                            </div>
-                          )}
-                          <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => alert('详情功能开发中')}>详情</button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {(String(app.status) === '待审核' || app.status === 0) && (
+                              <>
+                                <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--success)' }} onClick={() => handleAudit(app.id, 'pass')}>通过</button>
+                                <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleAudit(app.id, 'reject')}>驳回</button>
+                              </>
+                            )}
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--primary)' }} onClick={() => handleViewDetail(app.id)}>详情</button>
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteApplication(app.id)}>删除</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -502,13 +576,16 @@ function App() {
                 <div className="panel-header"><h3>知识库文档管理</h3></div>
                 <div className="table-container">
                   <table>
-                    <thead><tr><th>标题</th><th>文件名</th><th>状态</th></tr></thead>
+                    <thead><tr><th>标题</th><th>文件名</th><th>状态</th><th>操作</th></tr></thead>
                     <tbody>
                       {knowledgeDocs.map(doc => (
                         <tr key={doc.id}>
                           <td>{doc.title}</td>
                           <td>{doc.fileName}</td>
                           <td><span className="badge badge-success">已索引</span></td>
+                          <td>
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteKnowledge(doc.id)}>删除</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -540,7 +617,14 @@ function App() {
             <div className="panel" style={{ maxWidth: '800px', margin: '0 auto' }}>
               <div className="panel-header"><h3>本科培养方案管理</h3></div>
               {curriculum ? (
-                <div style={{ marginBottom: '32px', padding: '20px', background: 'var(--bg-workspace)', borderRadius: '12px' }}>
+                <div style={{ marginBottom: '32px', padding: '20px', background: 'var(--bg-workspace)', borderRadius: '12px', position: 'relative' }}>
+                  <button 
+                    className="btn btn-ghost" 
+                    style={{ position: 'absolute', top: '12px', right: '12px', color: 'var(--danger)' }}
+                    onClick={() => handleDeleteCurriculum(curriculum.id)}
+                  >
+                    🗑️ 删除此方案
+                  </button>
                   <h4 style={{ margin: '0 0 12px 0' }}>当前生效方案：{curriculum.programName}</h4>
                   <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>文件：{curriculum.fileName} (v{curriculum.version})</p>
                   <p style={{ margin: 0, fontSize: '14px' }}>包含 <strong>{curriculum.requiredCourses}</strong> 门必修课，共 <strong>{curriculum.requiredModules}</strong> 个模块</p>
@@ -568,6 +652,71 @@ function App() {
           )}
         </main>
       </div>
+
+      {isAppModalOpen && selectedApp && (
+        <div className="modal-overlay" onClick={() => setIsAppModalOpen(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>申请详情 - #{selectedApp.id}</h3>
+              <button className="btn btn-ghost" onClick={() => setIsAppModalOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="panel" style={{ border: 'none', boxShadow: 'none', padding: 0, marginBottom: '24px' }}>
+                <div className="detail-grid">
+                  <div className="detail-item"><label>申请类型</label><span>{selectedApp.typeLabel}</span></div>
+                  <div className="detail-item"><label>申请状态</label><StatusBadge status={selectedApp.status} /></div>
+                  <div className="detail-item"><label>提交时间</label><span>{selectedApp.createdAt}</span></div>
+                  <div className="detail-item"><label>最后更新</label><span>{selectedApp.updatedAt}</span></div>
+                </div>
+              </div>
+
+              <div className="panel">
+                <div className="panel-header"><h3>表单内容</h3></div>
+                <div className="detail-grid">
+                  {Object.entries(selectedApp.form || {}).map(([key, value]) => (
+                    <div className="detail-item" key={key}>
+                      <label>{key}</label>
+                      <span>{String(value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {selectedApp.attachments && selectedApp.attachments.length > 0 && (
+                <div className="panel" style={{ marginTop: '24px' }}>
+                  <div className="panel-header"><h3>附件材料</h3></div>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    {selectedApp.attachments.map((file: any, index: number) => (
+                      <div key={index} style={{ padding: '8px 12px', background: 'var(--bg-workspace)', borderRadius: '8px', fontSize: '13px' }}>
+                        📎 {file.name || file.fileName || '附件' + (index + 1)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="timeline">
+                {selectedApp.approvals?.map((node: any) => (
+                  <div key={node.key} className={`timeline-item ${node.status}`}>
+                    <div className="timeline-title">{node.title}</div>
+                    {node.time && <div className="timeline-time">{node.time}</div>}
+                    <div className="timeline-desc">{node.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setIsAppModalOpen(false)}>关闭</button>
+              {(selectedApp.status === '待审核' || selectedApp.status === '审批中') && (
+                <>
+                  <button className="btn btn-danger" onClick={() => handleAudit(selectedApp.id, 'reject')}>驳回申请</button>
+                  <button className="btn btn-primary" onClick={() => handleAudit(selectedApp.id, 'pass')}>通过审批</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

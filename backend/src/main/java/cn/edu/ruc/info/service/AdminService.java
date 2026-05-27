@@ -480,6 +480,18 @@ public class AdminService {
     }
 
     @Transactional
+    public void deleteNotification(String id) {
+        notificationMapper.deleteById(id);
+        auditLogService.success("DELETE_NOTIFICATION", id);
+    }
+
+    @Transactional
+    public void deleteDeliveryLog(String id) {
+        deliveryLogMapper.deleteById(id);
+        auditLogService.success("DELETE_DELIVERY_LOG", id);
+    }
+
+    @Transactional
     public ImportUsersResult importUsers(String fileName, List<ImportUserRow> rows, Long operatorId,
             Integer operatorRole) {
         String auditTarget = defaultIfBlank(fileName, "users");

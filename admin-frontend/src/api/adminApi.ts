@@ -144,6 +144,10 @@ export const adminApi = {
     })
   },
 
+  async uploadKnowledgeDocument(file: File) {
+    return uploadFile<KnowledgeDocumentItem>('/admin/knowledge/upload', file)
+  },
+
   async updateKnowledgeDocument(id: string, payload: { title?: string; sourceUrl?: string; active?: boolean }) {
     return request<boolean>(`/admin/knowledge/documents/${id}`, {
       method: 'PUT',

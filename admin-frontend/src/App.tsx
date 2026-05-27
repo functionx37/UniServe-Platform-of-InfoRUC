@@ -12,10 +12,16 @@ import { adminApi } from './api/adminApi'
 type ViewType = 'dashboard' | 'notifications' | 'push' | 'applications' | 'users' | 'knowledge' | 'curriculum'
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!localStorage.getItem('token'))
   const [activeView, setActiveView] = useState<ViewType>('dashboard')
   const [teacherName, setTeacherName] = useState('加载中...')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(isLoggedIn)
   
+  // Login Form States
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+
   // Data States
   const [dashboard, setDashboard] = useState({
     pendingNotificationCount: 0,
@@ -41,19 +47,49 @@ function App() {
 
   // Initialization
   useEffect(() => {
-    const init = async () => {
-      try {
-        const loginRes = await adminApi.login({ username: 'teacher01', password: '123456' })
-        setTeacherName(loginRes.data.displayName)
-        await refreshAll()
-      } catch (err) {
-        console.error('Init failed', err)
-      } finally {
-        setLoading(false)
-      }
+    if (isLoggedIn) {
+      initApp()
     }
-    init()
-  }, [])
+  }, [isLoggedIn])
+
+  const initApp = async () => {
+    setLoading(true)
+    try {
+      // 验证当前 token 并获取用户信息
+      const res = await adminApi.listUsers({ keyword: 'teacher01' }) // 简单示例：获取管理员自身信息
+      const admin = res.data.find((u: any) => u.username === 'teacher01')
+      if (admin) {
+        setTeacherName(admin.realName)
+      } else {
+        setTeacherName('管理老师')
+      }
+      await refreshAll()
+    } catch (err) {
+      console.error('Init failed', err)
+      // 如果初始化失败（如 token 过期），跳转登录
+      setIsLoggedIn(false)
+      localStorage.removeItem('token')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginError('')
+    try {
+      await adminApi.login({ username, password })
+      setIsLoggedIn(true)
+    } catch (err: any) {
+      setLoginError(err.message || '登录失败，请检查账号密码')
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    setIsLoggedIn(false)
+    setTeacherName('加载中...')
+  }
 
   const refreshAll = async () => {
     setIsSyncing(true)
@@ -81,8 +117,8 @@ function App() {
 
   // Push Preview Sync
   useEffect(() => {
+    if (!isLoggedIn || activeView !== 'push') return
     const syncPreview = async () => {
-      if (activeView !== 'push') return
       try {
         const res = await adminApi.previewPush({ grade: selectedGrade, major: selectedMajor, identity: selectedIdentity })
         setPreviewRecipients(res.data.recipients)
@@ -91,7 +127,7 @@ function App() {
       }
     }
     syncPreview()
-  }, [activeView, selectedGrade, selectedMajor, selectedIdentity])
+  }, [isLoggedIn, activeView, selectedGrade, selectedMajor, selectedIdentity])
 
   // Handlers
   const handlePush = async () => {
@@ -187,6 +223,50 @@ function App() {
     }
   }
 
+  // 渲染登录页
+  if (!isLoggedIn) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-header">
+            <div className="login-logo">U</div>
+            <h1>UniServe Admin</h1>
+            <p>管理老师登录中心</p>
+          </div>
+          <form onSubmit={handleLogin}>
+            <div className="form-group">
+              <label>管理账号</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                placeholder="请输入账号" 
+                value={username} 
+                onChange={e => setUsername(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>登录密码</label>
+              <input 
+                type="password" 
+                className="form-control" 
+                placeholder="请输入密码" 
+                value={password} 
+                onChange={e => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {loginError && <div style={{ color: 'var(--danger)', fontSize: '12px', marginBottom: '16px' }}>{loginError}</div>}
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '12px' }}>进入管理系统</button>
+          </form>
+          <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>
+            人大信息学院 / 综合服务平台
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) return <div className="loading-overlay"><div className="spinner"></div></div>
 
   return (
@@ -226,6 +306,7 @@ function App() {
               <span className="user-name">{teacherName}</span>
               <span className="user-role">管理老师</span>
             </div>
+            <button className="btn btn-ghost" onClick={handleLogout}>🚪 退出</button>
             <button className="btn btn-ghost" onClick={refreshAll}>🔄 刷新</button>
           </div>
         </header>
@@ -234,7 +315,7 @@ function App() {
           {activeView === 'dashboard' && (
             <>
               <div className="card-grid">
-                <StatCard label="待审事务" value={applications.filter(a => a.status === '待审核').length} footer="需要尽快处理" />
+                <StatCard label="待审事务" value={applications.filter(a => String(a.status) === '待审核' || a.status === 0).length} footer="需要尽快处理" />
                 <StatCard label="待发通知" value={dashboard.pendingNotificationCount} footer="已导入待审核" />
                 <StatCard label="活跃学生" value={dashboard.targetStudentCount} footer="当前标签命中数" />
                 <StatCard label="导入成功率" value={`${dashboard.latestImportSuccessRate}%`} footer="最近一次批次" />
@@ -397,7 +478,7 @@ function App() {
                         <td>{app.createdAt || '-'}</td>
                         <td><StatusBadge status={app.status} /></td>
                         <td>
-                          {app.status === '待审核' && (
+                          {(String(app.status) === '待审核' || app.status === 0) && (
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--success)' }} onClick={() => handleAudit(app.id, 'pass')}>通过</button>
                               <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleAudit(app.id, 'reject')}>驳回</button>

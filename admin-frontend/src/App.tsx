@@ -34,6 +34,9 @@ function App() {
   const [applications, setApplications] = useState<any[]>([])
   const [knowledgeDocs, setKnowledgeDocs] = useState<any[]>([])
   const [curriculum, setCurriculum] = useState<any>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [userSearch, setUserSearch] = useState('')
+  const [userFilter, setUserFilter] = useState({ roleId: 4, grade: '全部', major: '全部' })
   
   // Form/UI States
   const [selectedGrade, setSelectedGrade] = useState('全部')
@@ -96,13 +99,14 @@ function App() {
   const refreshAll = async () => {
     setIsSyncing(true)
     try {
-      const [dashRes, notifyRes, logsRes, appsRes, docsRes, currRes] = await Promise.all([
+      const [dashRes, notifyRes, logsRes, appsRes, docsRes, currRes, userRes] = await Promise.all([
         adminApi.getDashboard({ grade: selectedGrade, major: selectedMajor, identity: selectedIdentity }),
         adminApi.listNotifications(),
         adminApi.listDeliveryLogs(),
         adminApi.listApplications('全部'),
         adminApi.listKnowledgeDocuments(),
         adminApi.getLatestCurriculum(),
+        adminApi.listUsers({ ...userFilter, keyword: userSearch }),
       ])
       setDashboard(dashRes.data)
       setNotifications(notifyRes.data)
@@ -110,12 +114,28 @@ function App() {
       setApplications(appsRes.data)
       setKnowledgeDocs(docsRes.data)
       setCurriculum(currRes.data)
+      setUsers(userRes.data)
     } catch (err) {
       console.error('Refresh failed', err)
     } finally {
       setIsSyncing(false)
     }
   }
+
+  const refreshUsers = async () => {
+    try {
+      const res = await adminApi.listUsers({ ...userFilter, keyword: userSearch })
+      setUsers(res.data)
+    } catch (err) {
+      console.error('Fetch users failed', err)
+    }
+  }
+
+  useEffect(() => {
+    if (activeView === 'users') {
+      refreshUsers()
+    }
+  }, [activeView, userFilter, userSearch])
 
   // Push Preview Sync
   useEffect(() => {
@@ -221,6 +241,16 @@ function App() {
     try {
       await adminApi.deleteDeliveryLog(id)
       refreshAll()
+    } catch (err: any) {
+      alert('删除失败: ' + err.message)
+    }
+  }
+
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm('确定要注销此学生档案吗？')) return
+    try {
+      await adminApi.deleteUser(id)
+      refreshUsers()
     } catch (err: any) {
       alert('删除失败: ' + err.message)
     }
@@ -646,8 +676,68 @@ function App() {
 
           {activeView === 'users' && (
             <div className="panel">
-              <div className="panel-header"><h3>学生档案中心</h3></div>
-              <p className="muted" style={{ textAlign: 'center', padding: '100px' }}>档案中心正在进行 Kingbase 数据库迁移优化，暂不可用。</p>
+              <div className="panel-header">
+                <h3>学生档案中心</h3>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <input 
+                    className="form-control" 
+                    placeholder="搜索姓名/学号/账号..." 
+                    style={{ width: '240px' }}
+                    value={userSearch}
+                    onChange={e => setUserSearch(e.target.value)}
+                  />
+                  <select 
+                    className="form-control" 
+                    style={{ width: '120px' }}
+                    value={userFilter.grade}
+                    onChange={e => setUserFilter({ ...userFilter, grade: e.target.value })}
+                  >
+                    {gradeOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <select 
+                    className="form-control" 
+                    style={{ width: '150px' }}
+                    value={userFilter.major}
+                    onChange={e => setUserFilter({ ...userFilter, major: e.target.value })}
+                  >
+                    {majorOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr><th>学号</th><th>姓名</th><th>专业</th><th>年级</th><th>联系方式</th><th>操作</th></tr>
+                  </thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id}>
+                        <td>{u.studentNo || '-'}</td>
+                        <td><strong>{u.realName}</strong></td>
+                        <td>{u.major}</td>
+                        <td>{u.grade}</td>
+                        <td>
+                          <div style={{ fontSize: '12px' }}>
+                            <div>📧 {u.email || '未绑定'}</div>
+                            <div>📱 {u.phone || '未绑定'}</div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => alert('档案详情功能开发中')}>详情</button>
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteUser(u.id)}>注销</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {users.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                  未找到符合条件的档案
+                </div>
+              )}
             </div>
           )}
         </main>

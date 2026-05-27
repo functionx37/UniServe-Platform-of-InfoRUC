@@ -103,8 +103,10 @@ export const adminApi = {
   },
 
   async getDashboard(query: any) {
-    const params = new URLSearchParams(query)
-    return request<any>(`/admin/dashboard?${params.toString()}`)
+    return request<any>('/admin/dashboard', {
+      method: 'POST',
+      body: query,
+    })
   },
 
   async listNotifications() {
@@ -112,15 +114,17 @@ export const adminApi = {
   },
 
   async importNotifications(fileName: string, rows: any[]) {
-    return request<any>('/admin/notifications/import', {
+    return request<any>(`/admin/import/notifications?fileName=${encodeURIComponent(fileName)}`, {
       method: 'POST',
-      body: { fileName, rows },
+      body: rows,
     })
   },
 
   async previewPush(query: any) {
-    const params = new URLSearchParams(query)
-    return request<any>(`/admin/push/preview?${params.toString()}`)
+    return request<any>('/admin/push/preview', {
+      method: 'POST',
+      body: query,
+    })
   },
 
   async sendPush(payload: any) {

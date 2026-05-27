@@ -49,6 +49,8 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedApp, setSelectedApp] = useState<any>(null)
   const [isAppModalOpen, setIsAppModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false)
 
   // Initialization
   useEffect(() => {
@@ -253,6 +255,21 @@ function App() {
       refreshUsers()
     } catch (err: any) {
       alert('删除失败: ' + err.message)
+    }
+  }
+
+  const handleViewUserDetail = async (user: any) => {
+    setSelectedUser(user)
+    setIsUserModalOpen(true)
+  }
+
+  const handleResetPassword = async (id: number) => {
+    if (!confirm('确定要将该学生的密码重置为 123456 吗？')) return
+    try {
+      await adminApi.updateUser(id, { password: '123456' })
+      alert('密码已重置为 123456')
+    } catch (err: any) {
+      alert('重置失败: ' + err.message)
     }
   }
 
@@ -724,7 +741,7 @@ function App() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => alert('档案详情功能开发中')}>详情</button>
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--primary)' }} onClick={() => handleViewUserDetail(u)}>详情</button>
                             <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteUser(u.id)}>注销</button>
                           </div>
                         </td>
@@ -803,6 +820,56 @@ function App() {
                   <button className="btn btn-primary" onClick={() => handleAudit(selectedApp.id, 'pass')}>通过审批</button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isUserModalOpen && selectedUser && (
+        <div className="modal-overlay" onClick={() => setIsUserModalOpen(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>学生档案详情 - {selectedUser.realName}</h3>
+              <button className="btn btn-ghost" onClick={() => setIsUserModalOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="panel" style={{ border: 'none', boxShadow: 'none', padding: 0, marginBottom: '24px' }}>
+                <div className="detail-grid">
+                  <div className="detail-item"><label>姓名</label><span>{selectedUser.realName}</span></div>
+                  <div className="detail-item"><label>学号</label><span>{selectedUser.studentNo || '-'}</span></div>
+                  <div className="detail-item"><label>账号 (用户名)</label><span>{selectedUser.username}</span></div>
+                  <div className="detail-item"><label>身份类型</label><span className="badge badge-info">{selectedUser.identity || '学生'}</span></div>
+                  <div className="detail-item"><label>专业</label><span>{selectedUser.major}</span></div>
+                  <div className="detail-item"><label>年级</label><span>{selectedUser.grade}</span></div>
+                </div>
+              </div>
+
+              <div className="panel" style={{ marginBottom: '24px' }}>
+                <div className="panel-header"><h3>隐私与联系信息</h3></div>
+                <div className="detail-grid">
+                  <div className="detail-item"><label>电子邮箱</label><span>{selectedUser.email || '未绑定'}</span></div>
+                  <div className="detail-item"><label>手机号码 (已脱敏)</label><span>{selectedUser.phone || '未绑定'}</span></div>
+                  <div className="detail-item"><label>身份证号 (已脱敏)</label><span>{selectedUser.idCard || '未登记'}</span></div>
+                  <div className="detail-item"><label>账号状态</label><span className="badge badge-success">正常</span></div>
+                </div>
+              </div>
+
+              <div className="panel">
+                <div className="panel-header"><h3>快速操作</h3></div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button className="btn btn-ghost" onClick={() => handleResetPassword(selectedUser.id)}>🔑 重置登录密码</button>
+                  <button className="btn btn-ghost" onClick={() => {
+                    setIsUserModalOpen(false)
+                    setActiveView('applications')
+                  }}>📂 查看此生申请记录</button>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '12px' }}>
+                  * 重置密码后，学生的登录密码将统一恢复为 <code>123456</code>，请提醒学生及时修改。
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={() => setIsUserModalOpen(false)}>完成</button>
             </div>
           </div>
         </div>

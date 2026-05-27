@@ -145,7 +145,7 @@ export const adminApi = {
   },
 
   async uploadKnowledgeDocument(file: File) {
-    return uploadFile<KnowledgeDocumentItem>('/admin/knowledge/upload', file)
+    return uploadFile<KnowledgeDocumentItem>('/admin/knowledge/documents', file)
   },
 
   async updateKnowledgeDocument(id: string, payload: { title?: string; sourceUrl?: string; active?: boolean }) {

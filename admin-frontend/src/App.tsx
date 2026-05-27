@@ -418,7 +418,7 @@ function App() {
                     <table>
                       <thead><tr><th>标题</th><th>对象</th><th>时间</th><th>操作</th></tr></thead>
                       <tbody>
-                        {deliveryLogs.slice(0, 5).map(log => (
+                        {deliveryLogs.slice(0, 10).map(log => (
                           <tr key={log.id}>
                             <td>{log.title}</td>
                             <td>{log.audience?.split('/')[0] || '全体'}</td>

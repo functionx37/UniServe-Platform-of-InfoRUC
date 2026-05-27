@@ -248,6 +248,11 @@ public class KnowledgeBaseService {
         
         fileStorageService.deleteFile(document.getFilePath());
         knowledgeDocumentMapper.deleteById(id);
+        
+        // 清理数据库中的 chunk 记录和 embedding 记录
+        knowledgeChunkMapper.delete(new LambdaQueryWrapper<KnowledgeChunkRecord>().eq(KnowledgeChunkRecord::getDocumentId, id));
+        knowledgeChunkEmbeddingMapper.delete(new LambdaQueryWrapper<KnowledgeChunkEmbedding>().like(KnowledgeChunkEmbedding::getChunkId, id + ":%"));
+        
         rebuildIndex();
         auditLogService.success("DELETE_KNOWLEDGE_DOC", id);
         return true;
@@ -258,6 +263,15 @@ public class KnowledgeBaseService {
             List<KnowledgeDocument> documents = knowledgeDocumentMapper.selectList(
                     new LambdaQueryWrapper<KnowledgeDocument>().eq(KnowledgeDocument::getActive, true)
                             .orderByDesc(KnowledgeDocument::getUploadedAt));
+            
+            if (documents.isEmpty()) {
+                indexedChunks = new ArrayList<>();
+                indexState = new IndexState(List.of(), Map.of(), 0.0);
+                embeddingIndex = new HashMap<>();
+                auditLogService.success("REBUILD_KNOWLEDGE_INDEX", "0");
+                return 0;
+            }
+
             List<KnowledgeChunk> chunks = new ArrayList<>();
             for (KnowledgeDocument document : documents) {
                 String text = extractText(Path.of(document.getFilePath()), document.getFileType());

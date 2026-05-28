@@ -24,4 +24,13 @@ public class UserController {
             return Result.error(e.getMessage());
         }
     }
+
+    @org.springframework.web.bind.annotation.PostMapping("/profile")
+    public Result<LoginResponse.UserInfo> updateProfile(@org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body) {
+        try {
+            return Result.success(userService.updateProfile(body));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
 }

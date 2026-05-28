@@ -12,7 +12,7 @@ import { adminApi } from './api/adminApi'
 type ViewType = 'dashboard' | 'notifications' | 'push' | 'applications' | 'users' | 'knowledge' | 'curriculum'
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!localStorage.getItem('token'))
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!sessionStorage.getItem('token'))
   const [activeView, setActiveView] = useState<ViewType>('dashboard')
   const [teacherName, setTeacherName] = useState('加载中...')
   const [loading, setLoading] = useState(isLoggedIn)
@@ -87,7 +87,7 @@ function App() {
       console.error('Init failed', err)
       // 如果初始化失败（如 token 过期），跳转登录
       setIsLoggedIn(false)
-      localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
     } finally {
       setLoading(false)
     }
@@ -105,7 +105,7 @@ function App() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
+    sessionStorage.removeItem('token')
     setIsLoggedIn(false)
     setTeacherName('加载中...')
   }
@@ -916,8 +916,8 @@ function App() {
                 <div className="panel-header"><h3>隐私与联系信息</h3></div>
                 <div className="detail-grid">
                   <div className="detail-item"><label>电子邮箱</label><span>{selectedUser.email || '未绑定'}</span></div>
-                  <div className="detail-item"><label>手机号码 (已脱敏)</label><span>{selectedUser.phone || '未绑定'}</span></div>
-                  <div className="detail-item"><label>身份证号 (已脱敏)</label><span>{selectedUser.idCard || '未登记'}</span></div>
+                  <div className="detail-item"><label>手机号码</label><span>{selectedUser.phone || '未绑定'}</span></div>
+                  <div className="detail-item"><label>身份证号</label><span>{selectedUser.idCard || '未登记'}</span></div>
                   <div className="detail-item"><label>账号状态</label><span className="badge badge-success">正常</span></div>
                 </div>
               </div>

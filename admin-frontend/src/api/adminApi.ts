@@ -14,7 +14,7 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<{ 
   }
 
   if (withAuth) {
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token')
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
@@ -27,7 +27,7 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<{ 
   })
 
   if (response.status === 401) {
-    localStorage.removeItem('token')
+    sessionStorage.removeItem('token')
     window.location.reload()
   }
 
@@ -43,7 +43,7 @@ async function uploadFile<T>(url: string, file: File): Promise<{ success: boolea
   const formData = new FormData()
   formData.append('file', file)
 
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   const headers: Record<string, string> = {}
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
@@ -97,7 +97,7 @@ export const adminApi = {
       withAuth: false,
     })
     if (res.data.token) {
-      localStorage.setItem('token', res.data.token)
+      sessionStorage.setItem('token', res.data.token)
     }
     return res
   },

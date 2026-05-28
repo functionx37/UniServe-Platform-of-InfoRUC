@@ -8,6 +8,9 @@ import cn.edu.ruc.info.util.MaskUtil;
 import cn.edu.ruc.info.util.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 @Service
 public class UserService {
@@ -17,6 +20,9 @@ public class UserService {
 
     @Autowired
     private EncryptUtil encryptUtil;
+
+    @Autowired
+    private AuditLogService auditLogService;
 
     /**
      * 获取当前登录用户信息，并脱敏手机、身份证
@@ -57,5 +63,48 @@ public class UserService {
                 .phone(phone)
                 .idCard(idCard)
                 .build();
+    }
+
+    @Transactional
+    public LoginResponse.UserInfo updateProfile(Map<String, String> body) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("未登录");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        if (body.containsKey("studentNo")) {
+            user.setStudentNo(body.get("studentNo"));
+        }
+        if (body.containsKey("email")) {
+            user.setEmail(body.get("email"));
+        }
+        if (body.containsKey("phone")) {
+            String phone = body.get("phone");
+            if (phone != null && !phone.contains("*")) { // 只有非脱敏格式才更新
+                try {
+                    user.setPhone(encryptUtil.encrypt(phone));
+                } catch (Exception e) {
+                    throw new RuntimeException("手机号加密失败");
+                }
+            }
+        }
+        if (body.containsKey("idCard")) {
+            String idCard = body.get("idCard");
+            if (idCard != null && !idCard.contains("*")) {
+                try {
+                    user.setIdCard(encryptUtil.encrypt(idCard));
+                } catch (Exception e) {
+                    throw new RuntimeException("身份证加密失败");
+                }
+            }
+        }
+
+        userMapper.updateById(user);
+        auditLogService.success("UPDATE_PROFILE", String.valueOf(userId));
+        return getUserInfo();
     }
 }

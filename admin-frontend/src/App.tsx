@@ -12,7 +12,7 @@ import { adminApi } from './api/adminApi'
 type ViewType = 'dashboard' | 'notifications' | 'push' | 'applications' | 'users' | 'knowledge' | 'curriculum'
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!localStorage.getItem('token'))
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!sessionStorage.getItem('token'))
   const [activeView, setActiveView] = useState<ViewType>('dashboard')
   const [teacherName, setTeacherName] = useState('加载中...')
   const [loading, setLoading] = useState(isLoggedIn)
@@ -87,7 +87,7 @@ function App() {
       console.error('Init failed', err)
       // 如果初始化失败（如 token 过期），跳转登录
       setIsLoggedIn(false)
-      localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
     } finally {
       setLoading(false)
     }
@@ -105,7 +105,7 @@ function App() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
+    sessionStorage.removeItem('token')
     setIsLoggedIn(false)
     setTeacherName('加载中...')
   }

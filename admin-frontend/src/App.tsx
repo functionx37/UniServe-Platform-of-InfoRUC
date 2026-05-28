@@ -916,8 +916,8 @@ function App() {
                 <div className="panel-header"><h3>隐私与联系信息</h3></div>
                 <div className="detail-grid">
                   <div className="detail-item"><label>电子邮箱</label><span>{selectedUser.email || '未绑定'}</span></div>
-                  <div className="detail-item"><label>手机号码 (已脱敏)</label><span>{selectedUser.phone || '未绑定'}</span></div>
-                  <div className="detail-item"><label>身份证号 (已脱敏)</label><span>{selectedUser.idCard || '未登记'}</span></div>
+                  <div className="detail-item"><label>手机号码</label><span>{selectedUser.phone || '未绑定'}</span></div>
+                  <div className="detail-item"><label>身份证号</label><span>{selectedUser.idCard || '未登记'}</span></div>
                   <div className="detail-item"><label>账号状态</label><span className="badge badge-success">正常</span></div>
                 </div>
               </div>

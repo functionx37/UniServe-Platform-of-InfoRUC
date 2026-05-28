@@ -16,6 +16,7 @@ import cn.edu.ruc.info.mapper.NotificationMapper;
 import cn.edu.ruc.info.mapper.UserMapper;
 import cn.edu.ruc.info.util.EncryptUtil;
 import cn.edu.ruc.info.util.MaskUtil;
+import cn.edu.ruc.info.util.UserContext;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -627,17 +628,26 @@ public class AdminService {
         if (user == null) {
             return null;
         }
+
+        Long currentUserId = UserContext.getUserId();
+        Integer currentRoleId = UserContext.getRoleId();
+        // 管理员（角色1或2）或者是用户本人，可以看到完整信息
+        boolean canSeeFullInfo = (currentRoleId != null && (currentRoleId == 1 || currentRoleId == 2))
+                || (currentUserId != null && currentUserId.equals(user.getId()));
+
         String phone = null;
         if (user.getPhone() != null && !user.getPhone().isEmpty()) {
             try {
-                phone = MaskUtil.maskPhone(encryptUtil.decrypt(user.getPhone()));
+                String decryptedPhone = encryptUtil.decrypt(user.getPhone());
+                phone = canSeeFullInfo ? decryptedPhone : MaskUtil.maskPhone(decryptedPhone);
             } catch (Exception ignored) {
             }
         }
         String idCard = null;
         if (user.getIdCard() != null && !user.getIdCard().isEmpty()) {
             try {
-                idCard = MaskUtil.maskIdCard(encryptUtil.decrypt(user.getIdCard()));
+                String decryptedIdCard = encryptUtil.decrypt(user.getIdCard());
+                idCard = canSeeFullInfo ? decryptedIdCard : MaskUtil.maskIdCard(decryptedIdCard);
             } catch (Exception ignored) {
             }
         }

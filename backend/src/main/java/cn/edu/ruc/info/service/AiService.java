@@ -25,7 +25,7 @@ public class AiService {
         }
         List<KnowledgeBaseService.KnowledgeChunk> chunks = knowledgeBaseService.search(question, 4);
         if (chunks.isEmpty()) {
-            throw new RuntimeException("未找到可依据的政策材料，请先上传相关政策文档");
+            throw new RuntimeException("未找到可依据的政策材料，请等待管理员上传相关政策文档");
         }
 
         KnowledgeBaseService.KnowledgeChunk top = chunks.get(0);

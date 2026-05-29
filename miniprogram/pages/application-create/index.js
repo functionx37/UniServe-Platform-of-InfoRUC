@@ -44,7 +44,27 @@ Page({
     const key = e.currentTarget.dataset.key
     const value = e.detail.value
     if (!key) return
-    this.setData({ form: { ...this.data.form, [key]: value } })
+    const nextForm = { ...this.data.form, [key]: value }
+    this.setData({ form: nextForm })
+
+    const selected = this.data.types[this.data.typeIndex] || {}
+    if (selected.key !== "leave") return
+
+    const start = String(nextForm.leaveStart || "")
+    const end = String(nextForm.leaveEnd || "")
+    if (!start || !end) return
+
+    if (end < start) {
+      wx.showModal({
+        title: "日期不合法",
+        content: "请假结束日期不能早于请假开始日期，请重新选择。",
+        showCancel: false
+      })
+      const fixedForm = { ...nextForm }
+      if (key === "leaveEnd") fixedForm.leaveEnd = ""
+      if (key === "leaveStart") fixedForm.leaveStart = ""
+      this.setData({ form: fixedForm })
+    }
   },
   onAttachmentChange(e) {
     const d = e.detail || {}
@@ -58,6 +78,7 @@ Page({
     if (typeKey === "leave") {
       if (!required(f.leaveStart)) return "请选择请假开始日期"
       if (!required(f.leaveEnd)) return "请选择请假结束日期"
+      if (String(f.leaveEnd) < String(f.leaveStart)) return "请假结束日期不能早于请假开始日期"
       if (!required(f.reason)) return "请填写请假事由"
       if (!required(f.contactPhone)) return "请填写联系电话"
     }
@@ -80,6 +101,14 @@ Page({
       const form = this.data.form || {}
       const err = this.validate(typeKey, form)
       if (err) {
+        if (typeKey === "leave" && err.indexOf("结束日期不能早于开始日期") >= 0) {
+          wx.showModal({
+            title: "日期不合法",
+            content: "请假结束日期不能早于请假开始日期，请重新选择。",
+            showCancel: false
+          })
+          return
+        }
         this.setData({ errorMsg: err })
         return
       }

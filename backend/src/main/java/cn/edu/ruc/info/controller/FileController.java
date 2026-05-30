@@ -88,6 +88,8 @@ public class FileController {
             fileName = "notifications_import_template.xlsx";
         } else if ("users".equalsIgnoreCase(type)) {
             fileName = "users_import_template.xlsx";
+        } else if ("courses".equalsIgnoreCase(type)) {
+            fileName = "courses_import_template.csv";
         } else {
             return ResponseEntity.badRequest().build();
         }

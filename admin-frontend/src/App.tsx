@@ -172,7 +172,7 @@ function App() {
   const handlePush = async () => {
     if (!pushTitle || !pushContent) return alert('请填写标题和内容')
     try {
-      await adminApi.sendPush({
+      const res = await adminApi.sendPush({
         title: pushTitle,
         content: pushContent,
         grade: selectedGrade,
@@ -180,7 +180,11 @@ function App() {
         identity: selectedIdentity,
         channels: selectedChannels,
       })
-      alert('推送成功')
+      if (res.data?.status === '无法推送') {
+        alert('无法推送：匹配到的推送对象为 0 人')
+      } else {
+        alert('推送成功')
+      }
       setPushTitle('')
       setPushContent('')
       refreshAll()
@@ -875,6 +879,15 @@ function App() {
               )}
               <div className="form-group">
                 <label>更新培养方案 (支持 .xlsx)</label>
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                  <button 
+                    className="btn btn-ghost" 
+                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('courses'), 'courses_import_template.csv')}
+                    style={{ display: 'flex', alignItems: 'center' }}
+                  >
+                    📄 下载课程模板
+                  </button>
+                </div>
                 <label className="upload-area" style={{ display: 'block' }}>
                   <input type="file" onChange={handleCurriculumUpload} accept=".xlsx" />
                   <div style={{ fontSize: '24px', marginBottom: '8px' }}>📜</div>

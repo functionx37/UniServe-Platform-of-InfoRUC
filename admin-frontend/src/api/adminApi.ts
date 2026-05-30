@@ -329,7 +329,7 @@ export const adminApi = {
     URL.revokeObjectURL(objectUrl)
   },
 
-  getTemplateDownloadUrl(type: 'notifications' | 'users') {
+  getTemplateDownloadUrl(type: 'notifications' | 'users' | 'courses') {
     return `${API_BASE}/files/templates/admin/${type}`
   }
 }

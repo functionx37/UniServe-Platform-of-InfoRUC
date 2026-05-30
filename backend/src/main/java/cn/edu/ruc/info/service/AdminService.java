@@ -248,6 +248,10 @@ public class AdminService {
                     .identity(request.getIdentity())
                     .build());
 
+            if (recipients.isEmpty()) {
+                // 不抛异常，允许记录一条“无法推送”的日志
+            }
+
             String now = LocalDateTime.now().format(FORMATTER);
             String channels = request.getChannels() == null ? "" : String.join("、", request.getChannels());
             DeliveryLog log = new DeliveryLog();
@@ -259,23 +263,25 @@ public class AdminService {
             log.setChannels(isBlank(channels) ? "站内消息" : channels);
             log.setSentAt(now);
             log.setCount(recipients.size());
-            log.setStatus(recipients.isEmpty() ? "无匹配对象" : "已发送");
+            log.setStatus(recipients.isEmpty() ? "无法推送" : "已发送");
             log.setOperatorId(operatorId);
             deliveryLogMapper.insert(log);
 
-            Notification notification = new Notification();
-            notification.setId("push-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-            notification.setTitle(request.getTitle().trim());
-            notification.setCategory("推送");
-            notification.setTag("通知");
-            notification.setGrade(defaultIfBlank(request.getGrade(), "全部"));
-            notification.setMajor(defaultIfBlank(request.getMajor(), "全部"));
-            notification.setChannel(isBlank(channels) ? "站内消息" : channels);
-            notification.setPublishAt(now);
-            notification.setStatus("已发布");
-            notification.setContent(request.getContent());
-            notification.setCreatedBy(operatorId);
-            notificationMapper.insert(notification);
+            if (!recipients.isEmpty()) {
+                Notification notification = new Notification();
+                notification.setId("push-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+                notification.setTitle(request.getTitle().trim());
+                notification.setCategory("推送");
+                notification.setTag("通知");
+                notification.setGrade(defaultIfBlank(request.getGrade(), "全部"));
+                notification.setMajor(defaultIfBlank(request.getMajor(), "全部"));
+                notification.setChannel(isBlank(channels) ? "站内消息" : channels);
+                notification.setPublishAt(now);
+                notification.setStatus("已发布");
+                notification.setContent(request.getContent());
+                notification.setCreatedBy(operatorId);
+                notificationMapper.insert(notification);
+            }
 
             auditLogService.success("SEND_PUSH", log.getId());
             return DeliveryLogVO.builder()

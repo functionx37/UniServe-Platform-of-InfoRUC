@@ -1,7 +1,9 @@
 package cn.edu.ruc.info.service;
 
 import cn.edu.ruc.info.entity.CurriculumFile;
+import cn.edu.ruc.info.entity.ImportSession;
 import cn.edu.ruc.info.mapper.CurriculumFileMapper;
+import cn.edu.ruc.info.mapper.ImportSessionMapper;
 import cn.edu.ruc.info.util.JsonUtils;
 import cn.edu.ruc.info.util.StoragePathHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -28,18 +30,22 @@ import java.util.stream.Collectors;
 public class CurriculumService {
 
     private final CurriculumFileMapper curriculumFileMapper;
+    private final ImportSessionMapper importSessionMapper;
     private final FileStorageService fileStorageService;
     private final StoragePathHelper storagePathHelper;
     private final JsonUtils jsonUtils;
     private final AuditLogService auditLogService;
     private volatile CurriculumDefinition cachedDefinition;
+    private static final java.time.format.DateTimeFormatter FORMATTER = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public CurriculumService(CurriculumFileMapper curriculumFileMapper,
+            ImportSessionMapper importSessionMapper,
             FileStorageService fileStorageService,
             StoragePathHelper storagePathHelper,
             JsonUtils jsonUtils,
             AuditLogService auditLogService) {
         this.curriculumFileMapper = curriculumFileMapper;
+        this.importSessionMapper = importSessionMapper;
         this.fileStorageService = fileStorageService;
         this.storagePathHelper = storagePathHelper;
         this.jsonUtils = jsonUtils;
@@ -78,6 +84,17 @@ public class CurriculumService {
             curriculumFile.setUploadedBy(operatorId);
             curriculumFile.setUploadedAt(LocalDateTime.now());
             curriculumFileMapper.insert(curriculumFile);
+
+            // 同步创建一条导入记录，以便仪表盘显示
+            ImportSession session = new ImportSession();
+            session.setId("curimp-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            session.setFileName(originalName);
+            session.setTotalRows(definition.getRequiredCourses().size());
+            session.setSuccessRows(definition.getRequiredCourses().size());
+            session.setFailedRows(0);
+            session.setImportedAt(LocalDateTime.now().format(FORMATTER));
+            session.setOperatorId(operatorId);
+            importSessionMapper.insert(session);
 
             auditLogService.success("UPLOAD_CURRICULUM", curriculumFile.getId());
             return UploadResult.builder()

@@ -344,15 +344,15 @@ function App() {
       };
 
       const rows = data.map(r => ({
-        username: formatValue(r['学号'] || r['用户名']),
-        realName: formatValue(r['姓名']),
-        studentNo: formatValue(r['学号']),
-        grade: formatValue(r['年级'] || '2023级'),
-        major: formatValue(r['专业'] || '计算机科学与技术'),
-        identity: formatValue(r['身份'] || '普通学生'),
-        email: formatValue(r['邮箱']),
-        phone: formatValue(r['手机号']),
-        roleId: 4
+        username: formatValue(r['学号'] || r['用户名'] || r['username']),
+        realName: formatValue(r['姓名'] || r['realName']),
+        studentNo: formatValue(r['学号'] || r['studentNo']),
+        grade: formatValue(r['年级'] || r['grade'] || '2023级'),
+        major: formatValue(r['专业'] || r['major'] || '计算机科学与技术'),
+        identity: formatValue(r['身份'] || r['identity'] || '普通学生'),
+        email: formatValue(r['邮箱'] || r['email']),
+        phone: formatValue(r['手机号'] || r['phone']),
+        roleId: Number(r['roleId']) || 4
       }))
       
       const res = await adminApi.importUsers(rows)
@@ -881,7 +881,7 @@ function App() {
                 <label>更新培养方案 (支持 .xlsx)</label>
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                   <button 
-、                    className="btn btn-ghost" 
+                    className="btn btn-ghost" 
                     onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('courses'), 'courses_import_template.xlsx')}
                     style={{ display: 'flex', alignItems: 'center' }}
                   >

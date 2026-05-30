@@ -1,4 +1,4 @@
-username,password,roleId,realName,studentNo,grade,major,identity,email,phone,idCard
+用户名,密码,角色ID,姓名,学号,年级,专业,身份,邮箱,手机号,身份证号
 20260001,,4,张三,20260001,2026,信息学院,普通学生,zhangsan@example.com,,
 20260002,,4,李四,20260002,2026,信息学院,普通学生,lisi@example.com,,
 cadre01,123456,3,王五,,2026,信息学院,骨干,wuwu@example.com,,

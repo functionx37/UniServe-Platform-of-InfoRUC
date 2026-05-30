@@ -197,7 +197,11 @@ public class AdminService {
             session.setOperatorId(operatorId);
             importSessionMapper.insert(session);
 
-            auditLogService.success("IMPORT_NOTIFICATIONS", session.getId());
+            if (successRows > 0 || rows.isEmpty()) {
+                auditLogService.success("IMPORT_NOTIFICATIONS", session.getId());
+            } else {
+                auditLogService.failure("IMPORT_NOTIFICATIONS", session.getId(), "全部 " + rows.size() + " 行导入失败");
+            }
             return ImportNotificationsResult.builder()
                     .importSession(ImportSessionVO.builder()
                             .id(session.getId())
@@ -606,7 +610,11 @@ public class AdminService {
             session.setOperatorId(operatorId);
             importSessionMapper.insert(session);
 
-            auditLogService.success("IMPORT_USERS", session.getId());
+            if (success > 0 || total == 0) {
+                auditLogService.success("IMPORT_USERS", session.getId());
+            } else {
+                auditLogService.failure("IMPORT_USERS", session.getId(), "全部 " + total + " 行导入失败");
+            }
             return ImportUsersResult.builder()
                     .importSession(ImportSessionVO.builder()
                             .id(session.getId())

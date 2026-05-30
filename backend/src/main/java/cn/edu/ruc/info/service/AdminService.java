@@ -168,6 +168,21 @@ public class AdminService {
                 notification.setLinks(defaultIfBlank(row.getLinks(), "[]"));
                 notification.setCreatedBy(operatorId);
                 notificationMapper.insert(notification);
+
+                // 如果分类是“推送”且状态是“已发布”，同步创建一条发送日志
+                if ("推送".equals(notification.getCategory()) && "已发布".equals(notification.getStatus())) {
+                    DeliveryLog log = new DeliveryLog();
+                    log.setId("delivery-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+                    log.setTitle(notification.getTitle());
+                    log.setAudience(notification.getGrade() + " / " + notification.getMajor() + " / 全部");
+                    log.setChannels(notification.getChannel());
+                    log.setSentAt(notification.getPublishAt());
+                    log.setCount(0); // 导入的推送记录暂不统计人数，或后续异步统计
+                    log.setStatus("已发送");
+                    log.setOperatorId(operatorId);
+                    deliveryLogMapper.insert(log);
+                }
+
                 successRows++;
             }
 
@@ -283,20 +298,37 @@ public class AdminService {
         if (notification == null) {
             throw new RuntimeException("通知不存在");
         }
+        
+        String oldStatus = notification.getStatus();
         notification.setStatus(status);
         notificationMapper.updateById(notification);
 
-        // 如果是推送类的通知，同步更新推送日志的状态
-        if (id.startsWith("push-")) {
-            LambdaQueryWrapper<DeliveryLog> logWrapper = new LambdaQueryWrapper<>();
-            logWrapper.eq(DeliveryLog::getTitle, notification.getTitle());
-            // 找到最新的一条匹配的推送日志
-            logWrapper.orderByDesc(DeliveryLog::getSentAt);
-            logWrapper.last("limit 1");
-            DeliveryLog log = deliveryLogMapper.selectOne(logWrapper);
-            if (log != null) {
-                log.setStatus(status.equals("已下线") ? "已撤回" : "已发送");
-                deliveryLogMapper.updateById(log);
+        // 如果是推送类的通知
+        if ("推送".equals(notification.getCategory())) {
+            // 情况 A：是从“发送记录”产生的通知（id 以 push- 开头），同步更新日志状态
+            if (id.startsWith("push-")) {
+                LambdaQueryWrapper<DeliveryLog> logWrapper = new LambdaQueryWrapper<>();
+                logWrapper.eq(DeliveryLog::getTitle, notification.getTitle());
+                logWrapper.orderByDesc(DeliveryLog::getSentAt);
+                logWrapper.last("limit 1");
+                DeliveryLog log = deliveryLogMapper.selectOne(logWrapper);
+                if (log != null) {
+                    log.setStatus(status.equals("已下线") ? "已撤回" : "已发送");
+                    deliveryLogMapper.updateById(log);
+                }
+            } 
+            // 情况 B：是导入的推送类通知（id 以 policy- 开头），且从“待发布”变为“已发布”
+            else if (id.startsWith("policy-") && "待发布".equals(oldStatus) && "已发布".equals(status)) {
+                DeliveryLog log = new DeliveryLog();
+                log.setId("delivery-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+                log.setTitle(notification.getTitle());
+                log.setAudience(notification.getGrade() + " / " + notification.getMajor() + " / 全部");
+                log.setChannels(notification.getChannel());
+                log.setSentAt(notification.getPublishAt());
+                log.setCount(0);
+                log.setStatus("已发送");
+                log.setOperatorId(operatorId);
+                deliveryLogMapper.insert(log);
             }
         }
 
@@ -305,7 +337,7 @@ public class AdminService {
 
     public List<AuditLog> listAuditLogs(String action, Integer limit) {
         LambdaQueryWrapper<AuditLog> wrapper = new LambdaQueryWrapper<>();
-        if (isBlank(action)) {
+        if (!isBlank(action)) {
             wrapper.eq(AuditLog::getAction, action);
         }
         wrapper.orderByDesc(AuditLog::getCreatedAt);

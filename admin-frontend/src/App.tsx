@@ -52,6 +52,7 @@ function App() {
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false)
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [newUser, setNewUser] = useState({
     username: '',
     realName: '',
@@ -113,7 +114,7 @@ function App() {
   const refreshAll = async () => {
     setIsSyncing(true)
     try {
-      const [dashRes, notifyRes, logsRes, appsRes, docsRes, currRes, userRes] = await Promise.all([
+      const [dashRes, notifyRes, logsRes, appsRes, docsRes, currRes, userRes, auditRes] = await Promise.all([
         adminApi.getDashboard({ grade: selectedGrade, major: selectedMajor, identity: selectedIdentity }),
         adminApi.listNotifications(),
         adminApi.listDeliveryLogs(),
@@ -121,6 +122,7 @@ function App() {
         adminApi.listKnowledgeDocuments(),
         adminApi.getLatestCurriculum(),
         adminApi.listUsers({ ...userFilter, keyword: userSearch }),
+        adminApi.listAuditLogs(undefined, 20),
       ])
       setDashboard(dashRes.data)
       setNotifications(notifyRes.data)
@@ -129,6 +131,7 @@ function App() {
       setKnowledgeDocs(docsRes.data)
       setCurriculum(currRes.data)
       setUsers(userRes.data)
+      setAuditLogs(auditRes.data)
     } catch (err) {
       console.error('Refresh failed', err)
     } finally {
@@ -586,6 +589,43 @@ function App() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </div>
+
+              <div className="panel" style={{ marginTop: '24px' }}>
+                <div className="panel-header">
+                  <h3>系统操作与审计日志 (最近 20 条)</h3>
+                  <button className="btn btn-ghost" onClick={refreshAll}>🔄 刷新</button>
+                </div>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>时间</th>
+                        <th>操作类型</th>
+                        <th>对象</th>
+                        <th>结果</th>
+                        <th>备注/错误</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLogs.map(log => (
+                        <tr key={log.id}>
+                          <td style={{ fontSize: '12px' }}>{log.createdAt}</td>
+                          <td><strong>{log.action}</strong></td>
+                          <td>{log.target}</td>
+                          <td>
+                            <span className={`badge ${log.success ? 'badge-success' : 'badge-danger'}`}>
+                              {log.success ? '成功' : '失败'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '12px', color: log.success ? 'inherit' : 'var(--danger)' }}>
+                            {log.details || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </>

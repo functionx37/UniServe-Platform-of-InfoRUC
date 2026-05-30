@@ -296,6 +296,13 @@ export const adminApi = {
     })
   },
 
+  async listAuditLogs(action?: string, limit: number = 20) {
+    const params = new URLSearchParams()
+    if (action) params.append('action', action)
+    params.append('limit', String(limit))
+    return request<any[]>(`/admin/audit/logs?${params.toString()}`)
+  },
+
   async downloadFile(url: string, fileName: string) {
     const token = sessionStorage.getItem('token')
     const headers: Record<string, string> = {}

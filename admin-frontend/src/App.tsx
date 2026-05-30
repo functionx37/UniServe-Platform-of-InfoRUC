@@ -952,13 +952,14 @@ function App() {
               <div className="table-container">
                 <table>
                   <thead>
-                    <tr><th>学号</th><th>姓名</th><th>专业</th><th>年级</th><th>联系方式</th><th>操作</th></tr>
+                    <tr><th>学号</th><th>姓名</th><th>身份</th><th>专业</th><th>年级</th><th>联系方式</th><th>操作</th></tr>
                   </thead>
                   <tbody>
                     {users.map(u => (
                       <tr key={u.id}>
                         <td>{u.studentNo || '-'}</td>
                         <td><strong>{u.realName}</strong></td>
+                        <td><span className="badge badge-info" style={{ fontSize: '12px' }}>{u.identity || '普通学生'}</span></td>
                         <td>{u.major}</td>
                         <td>{u.grade}</td>
                         <td>

@@ -36,7 +36,7 @@ function App() {
   const [curriculum, setCurriculum] = useState<any>(null)
   const [users, setUsers] = useState<any[]>([])
   const [userSearch, setUserSearch] = useState('')
-  const [userFilter, setUserFilter] = useState({ roleId: 4, grade: '全部', major: '全部' })
+  const [userFilter, setUserFilter] = useState<any>({ roleId: null, isStudentOnly: true, grade: '全部', major: '全部' })
   
   // Form/UI States
   const [selectedGrade, setSelectedGrade] = useState('全部')
@@ -309,7 +309,7 @@ function App() {
       const payload = { 
         ...newUser, 
         username: newUser.username || newUser.studentNo,
-        roleId: 4 // 固定为学生角色
+        roleId: newUser.identity === '班团骨干' ? 3 : 4
       }
       await adminApi.createUser(payload)
       alert('学生档案录入成功')
@@ -347,8 +347,8 @@ function App() {
         const v = String(val || '').trim();
         if (v === '学院领导' || v === '1') return 1;
         if (v === '管理老师' || v === '2') return 2;
-        if (v === '骨干' || v === '3') return 3;
-        if (v === '学生' || v === '4') return 4;
+        if (v === '班团骨干' || v === '骨干' || v === '3') return 3;
+        if (v === '普通学生' || v === '学生' || v === '4') return 4;
         return Number(v) || 4;
       };
 
@@ -931,6 +931,23 @@ function App() {
                     value={userSearch}
                     onChange={e => setUserSearch(e.target.value)}
                   />
+                  <select 
+                    className="form-control" 
+                    style={{ width: '120px' }}
+                    value={userFilter.roleId || 'all'}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === 'all') {
+                        setUserFilter({ ...userFilter, roleId: null, isStudentOnly: true });
+                      } else {
+                        setUserFilter({ ...userFilter, roleId: Number(val), isStudentOnly: false });
+                      }
+                    }}
+                  >
+                    <option value="all">全部学生</option>
+                    <option value={4}>普通学生</option>
+                    <option value={3}>班团骨干</option>
+                  </select>
                   <select 
                     className="form-control" 
                     style={{ width: '120px' }}

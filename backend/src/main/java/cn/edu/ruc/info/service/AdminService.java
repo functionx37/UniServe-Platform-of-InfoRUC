@@ -362,6 +362,8 @@ public class AdminService {
         if (query != null) {
             if (query.getRoleId() != null) {
                 wrapper.eq(User::getRoleId, query.getRoleId());
+            } else if (Boolean.TRUE.equals(query.getIsStudentOnly())) {
+                wrapper.in(User::getRoleId, List.of(3, 4));
             }
             if (!isBlank(query.getGrade()) && !"全部".equals(query.getGrade())) {
                 wrapper.eq(User::getGrade, query.getGrade());
@@ -921,8 +923,8 @@ public class AdminService {
         }
         if ("学院领导".equals(v)) return 1;
         if ("管理老师".equals(v)) return 2;
-        if ("骨干".equals(v)) return 3;
-        if ("学生".equals(v)) return 4;
+        if ("骨干".equals(v) || "班团骨干".equals(v)) return 3;
+        if ("学生".equals(v) || "普通学生".equals(v)) return 4;
         try {
             return Integer.parseInt(v);
         } catch (NumberFormatException e) {
@@ -999,6 +1001,7 @@ public class AdminService {
         private String grade;
         private String major;
         private String keyword;
+        private Boolean isStudentOnly;
     }
 
     @lombok.Builder

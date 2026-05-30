@@ -1,4 +1,5 @@
 const application = require("../../services/application")
+const fileService = require("../../services/file")
 const { required } = require("../../utils/validator")
 const { ensureLoggedIn } = require("../../utils/storage")
 
@@ -113,9 +114,29 @@ Page({
         return
       }
 
-      const attachments = this.data.attachment.name
-        ? [{ name: this.data.attachment.name, url: "" }]
-        : []
+      const attachments = []
+      if (this.data.attachment.name && this.data.attachment.path) {
+        // 执行真实上传
+        wx.showLoading({ title: '上传附件中...', mask: true })
+        try {
+          const uploadRes = await fileService.uploadFile({
+            url: '/files/upload',
+            filePath: this.data.attachment.path,
+            name: 'file'
+          })
+          if (uploadRes && uploadRes.success && uploadRes.data) {
+            attachments.push({
+              name: uploadRes.data.name,
+              url: uploadRes.data.url
+            })
+          }
+        } catch (uploadErr) {
+          console.error('附件上传失败:', uploadErr)
+          throw new Error('附件上传失败，请稍后重试')
+        } finally {
+          wx.hideLoading()
+        }
+      }
 
       const res = await application.createApplication({ typeKey, form, attachments })
       const id = res && res.data && res.data.id

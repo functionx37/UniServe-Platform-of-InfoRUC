@@ -11,4 +11,5 @@ public class AppStorageProperties {
     private String curriculumDir;
     private String transcriptDir;
     private String proofDir;
+    private String attachmentsDir;
 }

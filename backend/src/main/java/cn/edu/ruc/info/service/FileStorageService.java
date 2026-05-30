@@ -27,6 +27,7 @@ public class FileStorageService {
         createDirectory(storagePathHelper.getCurriculumPath());
         createDirectory(storagePathHelper.getTranscriptRootPath());
         createDirectory(storagePathHelper.getProofPath());
+        createDirectory(storagePathHelper.getAttachmentsPath());
     }
 
     public StoredFile saveMultipartFile(MultipartFile file, Path directory, String prefix) {

@@ -38,4 +38,8 @@ public class StoragePathHelper {
     public Path getProofPath() {
         return getRootPath().resolve(storageProperties.getProofDir()).normalize();
     }
+
+    public Path getAttachmentsPath() {
+        return getRootPath().resolve(storageProperties.getAttachmentsDir()).normalize();
+    }
 }

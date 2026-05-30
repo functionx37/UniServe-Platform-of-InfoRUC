@@ -268,4 +268,8 @@ export const adminApi = {
       method: 'DELETE',
     })
   },
+
+  getTemplateDownloadUrl(type: 'notifications' | 'users') {
+    return `${API_BASE}/files/templates/admin/${type}`
+  }
 }

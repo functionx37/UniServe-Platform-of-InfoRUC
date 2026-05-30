@@ -30,6 +30,7 @@ app:
     curriculum-dir: ${APP_CURRICULUM_DIR:curriculum}
     transcript-dir: ${APP_TRANSCRIPT_DIR:transcripts}
     proof-dir: ${APP_PROOF_DIR:generated-proofs}
+    attachments-dir: ${APP_ATTACHMENTS_DIR:attachments}
   llm:
     base-url: ${LLM_BASE_URL:}
     api-token: ${LLM_API_TOKEN:}

@@ -89,7 +89,7 @@ public class FileController {
         } else if ("users".equalsIgnoreCase(type)) {
             fileName = "users_import_template.xlsx";
         } else if ("courses".equalsIgnoreCase(type)) {
-            fileName = "courses_import_template.csv";
+            fileName = "courses_import_template.xlsx";
         } else {
             return ResponseEntity.badRequest().build();
         }

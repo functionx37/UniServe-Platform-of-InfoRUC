@@ -882,7 +882,7 @@ function App() {
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                   <button 
                     className="btn btn-ghost" 
-                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('courses'), 'courses_import_template.csv')}
+                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('courses'), 'courses_import_template.xlsx')}
                     style={{ display: 'flex', alignItems: 'center' }}
                   >
                     📄 下载课程模板

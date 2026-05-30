@@ -56,7 +56,7 @@ async function uploadFile<T>(url: string, file: File): Promise<{ success: boolea
   })
 
   const result = await response.json()
-  if (!response.ok) {
+  if (!response.ok || result.success === false) {
     throw new Error(result.message || '上传失败')
   }
 

@@ -313,18 +313,28 @@ function App() {
     if (!file) return
     try {
       const buffer = await file.arrayBuffer()
-      const wb = XLSX.read(buffer, { type: 'array' })
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]])
       
+      const formatValue = (val: any) => {
+        if (val instanceof Date) {
+          const y = val.getFullYear();
+          const m = String(val.getMonth() + 1).padStart(2, '0');
+          const d = String(val.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+        return String(val || '').trim();
+      };
+
       const rows = data.map(r => ({
-        username: String(r['学号'] || r['用户名'] || '').trim(),
-        realName: String(r['姓名'] || '').trim(),
-        studentNo: String(r['学号'] || '').trim(),
-        grade: String(r['年级'] || '2023级').trim(),
-        major: String(r['专业'] || '计算机科学与技术').trim(),
-        identity: String(r['身份'] || '普通学生').trim(),
-        email: String(r['邮箱'] || '').trim(),
-        phone: String(r['手机号'] || '').trim(),
+        username: formatValue(r['学号'] || r['用户名']),
+        realName: formatValue(r['姓名']),
+        studentNo: formatValue(r['学号']),
+        grade: formatValue(r['年级'] || '2023级'),
+        major: formatValue(r['专业'] || '计算机科学与技术'),
+        identity: formatValue(r['身份'] || '普通学生'),
+        email: formatValue(r['邮箱']),
+        phone: formatValue(r['手机号']),
         roleId: 4
       }))
       
@@ -341,19 +351,33 @@ function App() {
     if (!file) return
     try {
       const buffer = await file.arrayBuffer()
-      const wb = XLSX.read(buffer, { type: 'array' })
+      // cellDates: true 确保日期列被解析为 JS Date 对象而非 Excel 数字
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]])
       
+      const formatValue = (val: any) => {
+        if (val instanceof Date) {
+          // 格式化为 yyyy-MM-dd HH:mm
+          const y = val.getFullYear();
+          const m = String(val.getMonth() + 1).padStart(2, '0');
+          const d = String(val.getDate()).padStart(2, '0');
+          const hh = String(val.getHours()).padStart(2, '0');
+          const mm = String(val.getMinutes()).padStart(2, '0');
+          return `${y}-${m}-${d} ${hh}:${mm}`;
+        }
+        return String(val || '').trim();
+      };
+
       const rows = data.map(r => ({
-        title: String(r['标题'] || r['title'] || '').trim(),
-        category: String(r['分类'] || r['category'] || '').trim(),
-        grade: String(r['年级'] || r['grade'] || '全部').trim(),
-        major: String(r['专业'] || r['major'] || '全部').trim(),
-        channel: String(r['渠道'] || r['channel'] || '站内消息').trim(),
-        publishAt: String(r['发布时间'] || r['publishAt'] || '').trim(),
-        status: String(r['状态'] || r['status'] || '待发布').trim(),
-        content: String(r['内容'] || r['content'] || '').trim(),
-        links: String(r['链接'] || r['links'] || '[]').trim(),
+        title: formatValue(r['标题'] || r['title']),
+        category: formatValue(r['分类'] || r['category']),
+        grade: formatValue(r['年级'] || r['grade'] || '全部'),
+        major: formatValue(r['专业'] || r['major'] || '全部'),
+        channel: formatValue(r['渠道'] || r['channel'] || '站内消息'),
+        publishAt: formatValue(r['发布时间'] || r['publishAt']),
+        status: formatValue(r['状态'] || r['status'] || '待发布'),
+        content: formatValue(r['内容'] || r['content']),
+        links: formatValue(r['链接'] || r['links'] || '[]'),
       }))
       
       const res = await adminApi.importNotifications(file.name, rows)

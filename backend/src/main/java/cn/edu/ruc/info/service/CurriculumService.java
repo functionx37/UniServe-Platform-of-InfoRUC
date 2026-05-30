@@ -50,8 +50,8 @@ public class CurriculumService {
         try {
             String originalName = file.getOriginalFilename();
             String extension = getExtension(originalName);
-            if (!List.of(".json", ".xlsx", ".xls").contains(extension)) {
-                throw new RuntimeException("培养方案仅支持 JSON 或 Excel 文件");
+            if (!List.of(".xlsx", ".xls").contains(extension)) {
+                throw new RuntimeException("培养方案仅支持 Excel 文件 (.xlsx, .xls)");
             }
 
             FileStorageService.StoredFile storedFile = fileStorageService.saveMultipartFile(
@@ -60,7 +60,7 @@ public class CurriculumService {
                     "curriculum");
             Path actualPath = storedFile.path();
 
-            CurriculumDefinition definition = loadDefinition(actualPath, extension);
+            CurriculumDefinition definition = parseExcelDefinition(actualPath);
             cachedDefinition = definition;
 
             curriculumFileMapper.selectList(null).forEach(item -> {
@@ -137,24 +137,8 @@ public class CurriculumService {
         if (latest == null) {
             throw new RuntimeException("尚未上传培养方案");
         }
-        cachedDefinition = loadDefinition(Path.of(latest.getFilePath()),
-                "." + latest.getFileType().toLowerCase(Locale.ROOT));
+        cachedDefinition = parseExcelDefinition(Path.of(latest.getFilePath()));
         return cachedDefinition;
-    }
-
-    private CurriculumDefinition loadDefinition(Path path, String extension) {
-        try {
-            if (".json".equals(extension)) {
-                CurriculumDefinition definition = jsonUtils.fromJson(
-                        Files.readString(path),
-                        CurriculumDefinition.class);
-                validateDefinition(definition);
-                return definition;
-            }
-            return parseExcelDefinition(path);
-        } catch (IOException e) {
-            throw new RuntimeException("读取培养方案文件失败");
-        }
     }
 
     private CurriculumDefinition parseExcelDefinition(Path path) {

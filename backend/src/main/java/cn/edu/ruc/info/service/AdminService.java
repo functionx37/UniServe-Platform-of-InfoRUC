@@ -169,8 +169,9 @@ public class AdminService {
                 notification.setCreatedBy(operatorId);
                 notificationMapper.insert(notification);
 
-                // 如果分类是“推送”且状态是“已发布”，同步创建一条发送日志
-                if ("推送".equals(notification.getCategory()) && "已发布".equals(notification.getStatus())) {
+                // 如果分类是“推送”或“精准推送”且状态是“已发布”，同步创建一条发送日志
+                String category = notification.getCategory();
+                if (("推送".equals(category) || "精准推送".equals(category)) && "已发布".equals(notification.getStatus())) {
                     DeliveryLog log = new DeliveryLog();
                     log.setId("delivery-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
                     log.setTitle(notification.getTitle());
@@ -304,21 +305,22 @@ public class AdminService {
         notificationMapper.updateById(notification);
 
         // 如果是推送类的通知
-        if ("推送".equals(notification.getCategory())) {
+        String category = notification.getCategory() == null ? "" : notification.getCategory().trim();
+        if ("推送".equals(category) || "精准推送".equals(category)) {
             // 情况 A：是从“发送记录”产生的通知（id 以 push- 开头），同步更新日志状态
-            if (id.startsWith("push-")) {
+            if (id != null && id.startsWith("push-")) {
                 LambdaQueryWrapper<DeliveryLog> logWrapper = new LambdaQueryWrapper<>();
                 logWrapper.eq(DeliveryLog::getTitle, notification.getTitle());
                 logWrapper.orderByDesc(DeliveryLog::getSentAt);
                 logWrapper.last("limit 1");
                 DeliveryLog log = deliveryLogMapper.selectOne(logWrapper);
                 if (log != null) {
-                    log.setStatus(status.equals("已下线") ? "已撤回" : "已发送");
+                    log.setStatus("已发布".equals(status) ? "已发送" : "已撤回");
                     deliveryLogMapper.updateById(log);
                 }
             } 
             // 情况 B：是导入的推送类通知（id 以 policy- 开头），且从“待发布”变为“已发布”
-            else if (id.startsWith("policy-") && "待发布".equals(oldStatus) && "已发布".equals(status)) {
+            else if (id != null && id.startsWith("policy-") && "待发布".equals(oldStatus) && "已发布".equals(status)) {
                 DeliveryLog log = new DeliveryLog();
                 log.setId("delivery-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
                 log.setTitle(notification.getTitle());

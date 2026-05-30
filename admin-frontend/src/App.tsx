@@ -122,7 +122,7 @@ function App() {
         adminApi.listKnowledgeDocuments(),
         adminApi.getLatestCurriculum(),
         adminApi.listUsers({ ...userFilter, keyword: userSearch }),
-        adminApi.listAuditLogs(undefined, 20),
+        adminApi.listAuditLogs(undefined, 5),
       ])
       setDashboard(dashRes.data)
       setNotifications(notifyRes.data)
@@ -594,7 +594,7 @@ function App() {
 
               <div className="panel" style={{ marginTop: '24px' }}>
                 <div className="panel-header">
-                  <h3>系统操作与审计日志 (最近 20 条)</h3>
+                  <h3>最近 5 条操作记录与审计日志</h3>
                   <button className="btn btn-ghost" onClick={refreshAll}>🔄 刷新</button>
                 </div>
                 <div className="table-container">
@@ -615,12 +615,12 @@ function App() {
                           <td><strong>{log.action}</strong></td>
                           <td>{log.target}</td>
                           <td>
-                            <span className={`badge ${log.success ? 'badge-success' : 'badge-danger'}`}>
-                              {log.success ? '成功' : '失败'}
+                            <span className={`badge ${log.result?.startsWith('SUCCESS') ? 'badge-success' : 'badge-danger'}`}>
+                              {log.result?.startsWith('SUCCESS') ? '成功' : '失败'}
                             </span>
                           </td>
-                          <td style={{ fontSize: '12px', color: log.success ? 'inherit' : 'var(--danger)' }}>
-                            {log.details || '-'}
+                          <td style={{ fontSize: '12px', color: log.result?.startsWith('SUCCESS') ? 'inherit' : 'var(--danger)' }}>
+                            {log.result}
                           </td>
                         </tr>
                       ))}
@@ -874,12 +874,12 @@ function App() {
                 <p className="muted" style={{ textAlign: 'center', padding: '40px' }}>尚未配置培养方案，学生端学业分析将无法使用。</p>
               )}
               <div className="form-group">
-                <label>更新培养方案 (支持 .json, .xlsx)</label>
+                <label>更新培养方案 (支持 .xlsx)</label>
                 <label className="upload-area" style={{ display: 'block' }}>
-                  <input type="file" onChange={handleCurriculumUpload} />
+                  <input type="file" onChange={handleCurriculumUpload} accept=".xlsx" />
                   <div style={{ fontSize: '24px', marginBottom: '8px' }}>📜</div>
-                  <strong>上传新方案文件</strong>
-                  <p style={{ fontSize: '12px', color: 'var(--muted)' }}>系统将按最新上传的文件计算学生修读进度</p>
+                  <strong>上传培养方案 Excel</strong>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)' }}>系统将解析 Excel 课程数据（详细解析算法优化中）</p>
                 </label>
               </div>
             </div>

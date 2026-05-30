@@ -9,7 +9,7 @@ Page({
     loading: false,
     errorMsg: "",
     maxSizeMb: 10,
-    allowedExt: ["pdf", "xls", "xlsx"],
+    allowedExt: ["pdf", "xls", "xlsx", "csv"],
     infoItems: []
   },
   onLoad() {
@@ -17,7 +17,7 @@ Page({
     this.setData({
       infoItems: [
         { label: "大小限制", value: this.data.maxSizeMb + "MB" },
-        { label: "支持格式", value: "pdf / xls / xlsx" }
+        { label: "支持格式", value: "pdf / xls / xlsx / csv" }
       ]
     })
   },
@@ -34,7 +34,7 @@ Page({
     const ext = name.indexOf(".") >= 0 ? name.split(".").pop().toLowerCase() : ""
     if (this.data.allowedExt.indexOf(ext) < 0) {
       this.setData({ fileName: "", filePath: "", fileSize: 0 })
-      wx.showToast({ title: "文件格式错误：仅支持 PDF/Excel", icon: "none" })
+      wx.showToast({ title: "文件格式错误：仅支持 PDF/Excel/CSV", icon: "none" })
       return
     }
 

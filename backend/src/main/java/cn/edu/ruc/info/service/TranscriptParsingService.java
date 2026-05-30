@@ -34,6 +34,8 @@ public class TranscriptParsingService {
         List<AcademicRecord> records;
         if (".xlsx".equals(extension) || ".xls".equals(extension)) {
             records = parseExcel(filePath, userId);
+        } else if (".csv".equals(extension)) {
+            records = parseCsv(filePath, userId);
         } else if (".pdf".equals(extension)) {
             records = parsePdf(filePath, userId);
         } else {
@@ -47,6 +49,80 @@ public class TranscriptParsingService {
                 .records(records)
                 .message("解析成功，共识别 " + records.size() + " 门课程")
                 .build();
+    }
+
+    private List<AcademicRecord> parseCsv(Path filePath, Long userId) {
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(filePath);
+        } catch (IOException e) {
+            throw new RuntimeException("解析 CSV 成绩单失败");
+        }
+        if (lines == null || lines.isEmpty()) {
+            return List.of();
+        }
+        List<String> headerCells = splitCsvLine(lines.get(0));
+        Map<String, Integer> headers = new HashMap<>();
+        for (int i = 0; i < headerCells.size(); i++) {
+            headers.put(String.valueOf(headerCells.get(i)).trim(), i);
+        }
+        List<AcademicRecord> records = new ArrayList<>();
+        for (int i = 1; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (!StringUtils.hasText(line)) {
+                continue;
+            }
+            List<String> cells = splitCsvLine(line);
+            String courseName = getCsvCell(headers, cells, "课程名", "课程", "课程名称");
+            if (!StringUtils.hasText(courseName)) {
+                continue;
+            }
+            records.add(buildRecord(
+                    userId,
+                    courseName,
+                    getCsvCell(headers, cells, "学分"),
+                    getCsvCell(headers, cells, "成绩", "分数"),
+                    defaultIfBlank(getCsvCell(headers, cells, "类别", "模块"), "未分类"),
+                    getCsvCell(headers, cells, "学期", "semester")));
+        }
+        return records;
+    }
+
+    private String getCsvCell(Map<String, Integer> headers, List<String> cells, String... names) {
+        for (String name : names) {
+            Integer index = headers.get(name);
+            if (index != null && index >= 0 && index < cells.size()) {
+                return String.valueOf(cells.get(index)).trim();
+            }
+        }
+        return "";
+    }
+
+    private List<String> splitCsvLine(String line) {
+        List<String> out = new ArrayList<>();
+        if (line == null) {
+            return out;
+        }
+        StringBuilder cur = new StringBuilder();
+        boolean inQuotes = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    cur.append('"');
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                out.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(c);
+            }
+        }
+        out.add(cur.toString());
+        return out;
     }
 
     private List<AcademicRecord> parseExcel(Path filePath, Long userId) {

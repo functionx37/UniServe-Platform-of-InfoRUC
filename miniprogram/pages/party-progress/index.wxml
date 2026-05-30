@@ -13,6 +13,17 @@
         items="{{stageItems}}"
       />
 
+      <view style="height: 10rpx"></view>
+      <view class="u-card u-card--flat" style="padding: 16rpx 20rpx">
+        <view class="u-subtitle">测试模式：可手动调整当前进度</view>
+        <view style="height: 12rpx"></view>
+        <view style="display:flex; gap: 12rpx;">
+          <button size="mini" class="u-btn u-btn--secondary" bindtap="prevStage">上一步</button>
+          <button size="mini" class="u-btn u-btn--primary" bindtap="nextStage">下一步</button>
+          <button size="mini" class="u-btn u-btn--secondary" bindtap="resetStage">重置</button>
+        </view>
+      </view>
+
       <view style="height: 12rpx"></view>
       <progress-bar label="整体进度" percent="{{progress.progressPercent || 0}}" showPercent="{{true}}" />
 

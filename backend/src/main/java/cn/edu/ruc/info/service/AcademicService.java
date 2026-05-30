@@ -155,7 +155,7 @@ public class AcademicService {
         Long userId = requireUserId();
         String fileName = file.getOriginalFilename();
         String extension = extensionOf(fileName);
-        if (!List.of(".pdf", ".xls", ".xlsx").contains(extension)) {
+        if (!List.of(".pdf", ".xls", ".xlsx", ".csv").contains(extension)) {
             throw new RuntimeException("仅支持 PDF / Excel 成绩单文件");
         }
 

@@ -557,7 +557,7 @@ function App() {
                 <div className="panel">
                   <div className="panel-header">
                     <h3>推送日志</h3>
-                    <button className="btn btn-ghost" onClick={() => setActiveView('push')}>更多</button>
+                    <button className="btn btn-ghost" onClick={() => setActiveView('notifications')}>更多</button>
                   </div>
                   <div className="table-container">
                     <table>
@@ -582,54 +582,84 @@ function App() {
           )}
 
           {activeView === 'notifications' && (
-            <div className="panel">
-              <div className="panel-header">
-                <h3>通知公告列表</h3>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button 
-                    className="btn btn-ghost" 
-                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('notifications'), 'notifications_import_template.xlsx')}
-                    style={{ display: 'flex', alignItems: 'center' }}
-                  >
-                    📄 下载模板
-                  </button>
-                  <label className="btn btn-primary">
-                    📤 批量导入
-                    <input type="file" style={{ display: 'none' }} onChange={handleImport} accept=".xlsx,.csv" />
-                  </label>
+            <>
+              <div className="panel">
+                <div className="panel-header">
+                  <h3>通知公告列表</h3>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button 
+                      className="btn btn-ghost" 
+                      onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('notifications'), 'notifications_import_template.xlsx')}
+                      style={{ display: 'flex', alignItems: 'center' }}
+                    >
+                      📄 下载模板
+                    </button>
+                    <label className="btn btn-primary">
+                      📤 批量导入
+                      <input type="file" style={{ display: 'none' }} onChange={handleImport} accept=".xlsx,.csv" />
+                    </label>
+                  </div>
+                </div>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr><th>标题</th><th>分类</th><th>范围</th><th>发布时间</th><th>状态</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+                      {notifications.map(n => (
+                        <tr key={n.id}>
+                          <td>{n.title}</td>
+                          <td><span className="badge badge-info">{n.category}</span></td>
+                          <td>{n.grade} / {n.major}</td>
+                          <td>{n.publishAt}</td>
+                          <td><span className={`badge ${n.status === '已发布' ? 'badge-success' : 'badge-warning'}`}>{n.status}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className="btn btn-ghost" 
+                                style={{ padding: '4px 8px', fontSize: '12px', color: n.status === '已发布' ? 'var(--warning)' : 'var(--success)' }} 
+                                onClick={() => handleUpdateNotificationStatus(n.id, n.status)}
+                              >
+                                {n.status === '已发布' ? '下线' : '发布'}
+                              </button>
+                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteNotification(n.id)}>删除</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr><th>标题</th><th>分类</th><th>范围</th><th>发布时间</th><th>状态</th><th>操作</th></tr>
-                  </thead>
-                  <tbody>
-                    {notifications.map(n => (
-                      <tr key={n.id}>
-                        <td>{n.title}</td>
-                        <td><span className="badge badge-info">{n.category}</span></td>
-                        <td>{n.grade} / {n.major}</td>
-                        <td>{n.publishAt}</td>
-                        <td><span className={`badge ${n.status === '已发布' ? 'badge-success' : 'badge-warning'}`}>{n.status}</span></td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              className="btn btn-ghost" 
-                              style={{ padding: '4px 8px', fontSize: '12px', color: n.status === '已发布' ? 'var(--warning)' : 'var(--success)' }} 
-                              onClick={() => handleUpdateNotificationStatus(n.id, n.status)}
-                            >
-                              {n.status === '已发布' ? '下线' : '发布'}
-                            </button>
-                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteNotification(n.id)}>删除</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+              <div className="panel" style={{ marginTop: '24px' }}>
+                <div className="panel-header">
+                  <h3>精准推送发送记录 (Push Logs)</h3>
+                </div>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr><th>标题</th><th>目标对象</th><th>推送渠道</th><th>发送时间</th><th>成功人数</th><th>状态</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+                      {deliveryLogs.map(log => (
+                        <tr key={log.id}>
+                          <td>{log.title}</td>
+                          <td>{log.audience}</td>
+                          <td>{log.channels}</td>
+                          <td>{log.sentAt}</td>
+                          <td>{log.count} 人</td>
+                          <td><span className={`badge ${log.status === '已发送' ? 'badge-success' : 'badge-warning'}`}>{log.status}</span></td>
+                          <td>
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeletePushLog(log.id)}>删除</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {activeView === 'push' && (

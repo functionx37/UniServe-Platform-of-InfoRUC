@@ -396,9 +396,9 @@ public class AdminService {
             String username = trimToNull(request.getUsername());
             String studentNo = trimToNull(request.getStudentNo());
 
-            if (roleId == 4) {
+            if (roleId == 4 || roleId == 3) {
                 if (studentNo == null) {
-                    throw new RuntimeException("学号不能为空");
+                    throw new RuntimeException("学生或骨干必须提供学号");
                 }
                 if (username == null) {
                     username = studentNo;
@@ -919,6 +919,10 @@ public class AdminService {
         if (v == null) {
             return null;
         }
+        if ("学院领导".equals(v)) return 1;
+        if ("管理老师".equals(v)) return 2;
+        if ("骨干".equals(v)) return 3;
+        if ("学生".equals(v)) return 4;
         try {
             return Integer.parseInt(v);
         } catch (NumberFormatException e) {

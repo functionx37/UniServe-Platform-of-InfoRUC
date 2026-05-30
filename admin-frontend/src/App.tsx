@@ -343,6 +343,15 @@ function App() {
         return String(val || '').trim();
       };
 
+      const getRoleId = (val: any) => {
+        const v = String(val || '').trim();
+        if (v === '学院领导' || v === '1') return 1;
+        if (v === '管理老师' || v === '2') return 2;
+        if (v === '骨干' || v === '3') return 3;
+        if (v === '学生' || v === '4') return 4;
+        return Number(v) || 4;
+      };
+
       const rows = data.map(r => ({
         username: formatValue(r['学号'] || r['用户名'] || r['username']),
         realName: formatValue(r['姓名'] || r['realName']),
@@ -352,7 +361,7 @@ function App() {
         identity: formatValue(r['身份'] || r['identity'] || '普通学生'),
         email: formatValue(r['邮箱'] || r['email']),
         phone: formatValue(r['手机号'] || r['phone']),
-        roleId: Number(r['roleId']) || 4
+        roleId: getRoleId(r['角色ID'] || r['角色'] || r['roleId'])
       }))
       
       const res = await adminApi.importUsers(rows)

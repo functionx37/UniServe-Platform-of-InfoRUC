@@ -269,6 +269,32 @@ export const adminApi = {
     })
   },
 
+  async downloadFile(url: string, fileName: string) {
+    const token = sessionStorage.getItem('token')
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const response = await fetch(url.startsWith('http') ? url : `${API_BASE}${url}`, {
+      headers
+    })
+
+    if (!response.ok) {
+      throw new Error('下载失败')
+    }
+
+    const blob = await response.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(objectUrl)
+  },
+
   getTemplateDownloadUrl(type: 'notifications' | 'users') {
     return `${API_BASE}/files/templates/admin/${type}`
   }

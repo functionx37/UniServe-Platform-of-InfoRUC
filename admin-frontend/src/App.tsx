@@ -553,9 +553,13 @@ function App() {
               <div className="panel-header">
                 <h3>通知公告列表</h3>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <a href={adminApi.getTemplateDownloadUrl('notifications')} className="btn btn-ghost" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                  <button 
+                    className="btn btn-ghost" 
+                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('notifications'), 'notifications_import_template.xlsx')}
+                    style={{ display: 'flex', alignItems: 'center' }}
+                  >
                     📄 下载模板
-                  </a>
+                  </button>
                   <label className="btn btn-primary">
                     📤 批量导入
                     <input type="file" style={{ display: 'none' }} onChange={handleImport} accept=".xlsx,.csv" />
@@ -765,9 +769,13 @@ function App() {
                 <h3>学生档案中心</h3>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button className="btn btn-primary" onClick={() => setIsAddUserModalOpen(true)}>➕ 录入学生</button>
-                  <a href={adminApi.getTemplateDownloadUrl('users')} className="btn btn-ghost" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                  <button 
+                    className="btn btn-ghost" 
+                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('users'), 'users_import_template.xlsx')}
+                    style={{ display: 'flex', alignItems: 'center' }}
+                  >
                     📄 下载模板
-                  </a>
+                  </button>
                   <label className="btn btn-ghost">
                     📥 批量导入
                     <input type="file" style={{ display: 'none' }} onChange={handleUserImport} accept=".xlsx,.csv" />
@@ -869,31 +877,32 @@ function App() {
                 <div className="panel" style={{ marginTop: '24px' }}>
                   <div className="panel-header"><h3>附件材料</h3></div>
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    {selectedApp.attachments.map((file: any, index: number) => (
-                      <a 
-                        key={index} 
-                        href={file.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{ 
-                          padding: '8px 12px', 
-                          background: 'var(--bg-workspace)', 
-                          borderRadius: '8px', 
-                          fontSize: '13px',
-                          textDecoration: 'none',
-                          color: 'inherit',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          cursor: 'pointer',
-                          border: '1px solid var(--border)'
-                        }}
-                        className="attachment-link"
-                      >
-                        📎 {file.name || file.fileName || '附件' + (index + 1)}
-                        <span style={{ fontSize: '10px', opacity: 0.5 }}>📥</span>
-                      </a>
-                    ))}
+                    {selectedApp.attachments.map((file: any, index: number) => {
+                      const fileName = file.name || file.fileName || '附件' + (index + 1);
+                      return (
+                        <div 
+                          key={index} 
+                          onClick={() => adminApi.downloadFile(file.url, fileName)}
+                          style={{ 
+                            padding: '8px 12px', 
+                            background: 'var(--bg-workspace)', 
+                            borderRadius: '8px', 
+                            fontSize: '13px',
+                            textDecoration: 'none',
+                            color: 'inherit',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            border: '1px solid var(--border)'
+                          }}
+                          className="attachment-link"
+                        >
+                          📎 {fileName}
+                          <span style={{ fontSize: '10px', opacity: 0.5 }}>📥</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

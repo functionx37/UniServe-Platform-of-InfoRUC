@@ -110,6 +110,23 @@ public class FileController {
                 .body(resource);
     }
 
+    @GetMapping("/templates/student/transcript")
+    public ResponseEntity<Resource> downloadStudentTranscriptTemplate() {
+        String fileName = "transcript_template.csv";
+        Path templatePath = Paths.get("templates", "02-学生下载模板", fileName).toAbsolutePath().normalize();
+        if (!Files.exists(templatePath)) {
+            templatePath = Paths.get("..", "templates", "02-学生下载模板", fileName).toAbsolutePath().normalize();
+        }
+        if (!Files.exists(templatePath)) {
+            return ResponseEntity.notFound().build();
+        }
+        Resource resource = new FileSystemResource(templatePath);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .body(resource);
+    }
+
     @GetMapping("/proofs/{proofId}")
     public ResponseEntity<Resource> downloadProof(@PathVariable String proofId) {
         GeneratedProof proof = proofGenerationService.findById(proofId);

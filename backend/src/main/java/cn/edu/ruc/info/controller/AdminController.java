@@ -77,6 +77,18 @@ public class AdminController {
         }
     }
 
+    @PutMapping("/notifications/{id}/status")
+    public Result<?> updateNotificationStatus(@PathVariable String id, @RequestBody Map<String, String> body) {
+        try {
+            requireAdminRole();
+            String status = body.get("status");
+            adminService.updateNotificationStatus(id, status, UserContext.getUserId());
+            return Result.success(null);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @PostMapping("/push/preview")
     public Result<AdminService.PushPreviewVO> previewPush(@RequestBody AdminService.PushFilter filter) {
         try {

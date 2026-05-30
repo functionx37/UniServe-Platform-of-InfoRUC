@@ -230,6 +230,16 @@ function App() {
     }
   }
 
+  const handleUpdateNotificationStatus = async (id: string, currentStatus: string) => {
+    const nextStatus = currentStatus === '已发布' ? '已下线' : '已发布'
+    try {
+      await adminApi.updateNotificationStatus(id, nextStatus)
+      refreshAll()
+    } catch (err: any) {
+      alert('更新失败: ' + err.message)
+    }
+  }
+
   const handleDeleteKnowledge = async (id: string) => {
     if (!confirm('确定要删除这个文档吗？')) return
     try {
@@ -374,7 +384,6 @@ function App() {
         grade: formatValue(r['年级'] || r['grade'] || '全部'),
         major: formatValue(r['专业'] || r['major'] || '全部'),
         channel: formatValue(r['渠道'] || r['channel'] || '站内消息'),
-        publishAt: formatValue(r['发布时间'] || r['publishAt']),
         status: formatValue(r['状态'] || r['status'] || '待发布'),
         content: formatValue(r['内容'] || r['content']),
         links: formatValue(r['链接'] || r['links'] || '[]'),
@@ -604,7 +613,16 @@ function App() {
                         <td>{n.publishAt}</td>
                         <td><span className={`badge ${n.status === '已发布' ? 'badge-success' : 'badge-warning'}`}>{n.status}</span></td>
                         <td>
-                          <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteNotification(n.id)}>删除</button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              className="btn btn-ghost" 
+                              style={{ padding: '4px 8px', fontSize: '12px', color: n.status === '已发布' ? 'var(--warning)' : 'var(--success)' }} 
+                              onClick={() => handleUpdateNotificationStatus(n.id, n.status)}
+                            >
+                              {n.status === '已发布' ? '下线' : '发布'}
+                            </button>
+                            <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteNotification(n.id)}>删除</button>
+                          </div>
                         </td>
                       </tr>
                     ))}

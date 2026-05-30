@@ -126,6 +126,13 @@ export const adminApi = {
     })
   },
 
+  async updateNotificationStatus(id: string, status: string) {
+    return request<boolean>(`/admin/notifications/${id}/status`, {
+      method: 'PUT',
+      body: { status },
+    })
+  },
+
   async previewPush(query: any) {
     return request<any>('/admin/push/preview', {
       method: 'POST',

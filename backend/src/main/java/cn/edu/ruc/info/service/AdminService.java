@@ -161,7 +161,8 @@ public class AdminService {
                 notification.setGrade(defaultIfBlank(row.getGrade(), "全部"));
                 notification.setMajor(defaultIfBlank(row.getMajor(), "全部"));
                 notification.setChannel(defaultIfBlank(row.getChannel(), "站内消息"));
-                notification.setPublishAt(defaultIfBlank(row.getPublishAt(), "待定"));
+                // 导入时发布时间设为当前系统时间
+                notification.setPublishAt(LocalDateTime.now().format(FORMATTER));
                 notification.setStatus(defaultIfBlank(row.getStatus(), "待发布"));
                 notification.setContent(defaultIfBlank(row.getContent(), ""));
                 notification.setLinks(defaultIfBlank(row.getLinks(), "[]"));
@@ -274,6 +275,17 @@ public class AdminService {
             auditLogService.failure("SEND_PUSH", auditTarget, e.getMessage());
             throw e;
         }
+    }
+
+    @Transactional
+    public void updateNotificationStatus(String id, String status, Long operatorId) {
+        Notification notification = notificationMapper.selectById(id);
+        if (notification == null) {
+            throw new RuntimeException("通知不存在");
+        }
+        notification.setStatus(status);
+        notificationMapper.updateById(notification);
+        auditLogService.success("UPDATE_NOTIFICATION_STATUS", id + ":" + status);
     }
 
     public List<AuditLog> listAuditLogs(String action, Integer limit) {

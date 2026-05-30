@@ -345,13 +345,15 @@ function App() {
       const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]])
       
       const rows = data.map(r => ({
-        title: String(r['标题'] || '').trim(),
-        category: String(r['分类'] || '').trim(),
-        grade: String(r['年级'] || '全部').trim(),
-        major: String(r['专业'] || '全部').trim(),
-        channel: String(r['渠道'] || '站内消息').trim(),
-        publishAt: String(r['发布时间'] || '').trim(),
-        status: String(r['状态'] || '待发布').trim(),
+        title: String(r['标题'] || r['title'] || '').trim(),
+        category: String(r['分类'] || r['category'] || '').trim(),
+        grade: String(r['年级'] || r['grade'] || '全部').trim(),
+        major: String(r['专业'] || r['major'] || '全部').trim(),
+        channel: String(r['渠道'] || r['channel'] || '站内消息').trim(),
+        publishAt: String(r['发布时间'] || r['publishAt'] || '').trim(),
+        status: String(r['状态'] || r['status'] || '待发布').trim(),
+        content: String(r['内容'] || r['content'] || '').trim(),
+        links: String(r['链接'] || r['links'] || '[]').trim(),
       }))
       
       const res = await adminApi.importNotifications(file.name, rows)

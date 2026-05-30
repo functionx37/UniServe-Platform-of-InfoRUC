@@ -163,6 +163,8 @@ public class AdminService {
                 notification.setChannel(defaultIfBlank(row.getChannel(), "站内消息"));
                 notification.setPublishAt(defaultIfBlank(row.getPublishAt(), "待定"));
                 notification.setStatus(defaultIfBlank(row.getStatus(), "待发布"));
+                notification.setContent(defaultIfBlank(row.getContent(), ""));
+                notification.setLinks(defaultIfBlank(row.getLinks(), "[]"));
                 notification.setCreatedBy(operatorId);
                 notificationMapper.insert(notification);
                 successRows++;
@@ -862,6 +864,8 @@ public class AdminService {
         private String channel;
         private String publishAt;
         private String status;
+        private String content;
+        private String links;
     }
 
     @lombok.Builder

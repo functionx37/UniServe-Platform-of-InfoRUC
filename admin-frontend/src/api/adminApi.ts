@@ -89,6 +89,26 @@ export interface CurriculumSummary {
   uploadedAt: string
 }
 
+export interface ImportSessionVO {
+  id: string
+  fileName: string
+  totalRows: number
+  successRows: number
+  failedRows: number
+  importedAt: string
+}
+
+export interface ImportUsersResult {
+  importSession: ImportSessionVO
+  errors: string[]
+  message: string
+}
+
+export interface ImportNotificationsResult {
+  session: ImportSessionVO
+  message: string
+}
+
 export const adminApi = {
   async login(payload: any) {
     const res = await request<any>('/auth/login', {
@@ -120,7 +140,7 @@ export const adminApi = {
   },
 
   async importNotifications(fileName: string, rows: any[]) {
-    return request<any>(`/admin/import/notifications?fileName=${encodeURIComponent(fileName)}`, {
+    return request<ImportNotificationsResult>(`/admin/import/notifications?fileName=${encodeURIComponent(fileName)}`, {
       method: 'POST',
       body: rows,
     })
@@ -257,7 +277,7 @@ export const adminApi = {
   },
 
   async importUsers(rows: any[]) {
-    return request<any>('/admin/users/import', {
+    return request<ImportUsersResult>('/admin/users/import', {
       method: 'POST',
       body: rows,
     })

@@ -348,8 +348,13 @@ function App() {
         roleId: 4
       }))
       
-      await adminApi.importUsers(rows)
-      alert('批量导入指令已发送')
+      const res = await adminApi.importUsers(rows)
+      if (res && res.data && res.data.importSession) {
+        const { successRows, failedRows } = res.data.importSession;
+        alert(`导入完成！成功: ${successRows}，失败: ${failedRows}${failedRows > 0 ? '\n错误详情请查看审计日志。' : ''}`);
+      } else {
+        alert(res.message || '导入操作已执行');
+      }
       refreshUsers()
     } catch (err: any) {
       alert('导入失败: ' + err.message)
@@ -390,7 +395,12 @@ function App() {
       }))
       
       const res = await adminApi.importNotifications(file.name, rows)
-      alert(res.message)
+      if (res && res.data && res.data.session) {
+        const { successRows, failedRows } = res.data.session;
+        alert(`通知导入完成！成功: ${successRows}，失败: ${failedRows}`);
+      } else {
+        alert(res.message || '导入成功');
+      }
       refreshAll()
     } catch (err: any) {
       alert('导入失败: ' + err.message)

@@ -285,6 +285,21 @@ public class AdminService {
         }
         notification.setStatus(status);
         notificationMapper.updateById(notification);
+
+        // 如果是推送类的通知，同步更新推送日志的状态
+        if (id.startsWith("push-")) {
+            LambdaQueryWrapper<DeliveryLog> logWrapper = new LambdaQueryWrapper<>();
+            logWrapper.eq(DeliveryLog::getTitle, notification.getTitle());
+            // 找到最新的一条匹配的推送日志
+            logWrapper.orderByDesc(DeliveryLog::getSentAt);
+            logWrapper.last("limit 1");
+            DeliveryLog log = deliveryLogMapper.selectOne(logWrapper);
+            if (log != null) {
+                log.setStatus(status.equals("已下线") ? "已撤回" : "已发送");
+                deliveryLogMapper.updateById(log);
+            }
+        }
+
         auditLogService.success("UPDATE_NOTIFICATION_STATUS", id + ":" + status);
     }
 

@@ -426,7 +426,19 @@ public class AdminService {
             user.setStudentNo(studentNo);
             user.setGrade(trimToNull(request.getGrade()));
             user.setMajor(trimToNull(request.getMajor()));
-            user.setIdentity(defaultIfBlank(request.getIdentity(), roleId == 4 ? "普通学生" : ""));
+            
+            String defaultIdentity = "";
+            if (roleId == 4) {
+                defaultIdentity = "普通学生";
+            } else if (roleId == 3) {
+                defaultIdentity = "班团骨干";
+            } else if (roleId == 2) {
+                defaultIdentity = "管理老师";
+            } else if (roleId == 1) {
+                defaultIdentity = "学院领导";
+            }
+            user.setIdentity(defaultIfBlank(request.getIdentity(), defaultIdentity));
+            
             user.setEmail(trimToNull(request.getEmail()));
             user.setPhone(encryptIfPresent(request.getPhone()));
             user.setIdCard(encryptIfPresent(request.getIdCard()));

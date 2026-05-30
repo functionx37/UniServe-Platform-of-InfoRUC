@@ -362,7 +362,12 @@ function App() {
         email: formatValue(r['邮箱'] || r['email']),
         phone: formatValue(r['手机号'] || r['phone']),
         roleId: getRoleId(r['角色ID'] || r['角色'] || r['roleId'])
-      }))
+      })).filter(row => row.roleId === 3 || row.roleId === 4)
+      
+      if (rows.length === 0 && data.length > 0) {
+        alert('导入失败：未在文件中找到合法的学生数据（角色应为学生或骨干）。')
+        return
+      }
       
       const res = await adminApi.importUsers(rows)
       if (res && res.data && res.data.importSession) {
@@ -976,7 +981,11 @@ function App() {
                       <tr key={u.id}>
                         <td>{u.studentNo || '-'}</td>
                         <td><strong>{u.realName}</strong></td>
-                        <td><span className="badge badge-info" style={{ fontSize: '12px' }}>{u.identity || '普通学生'}</span></td>
+                        <td>
+                          <span className={`badge ${u.roleId <= 2 ? 'badge-warning' : 'badge-info'}`} style={{ fontSize: '12px' }}>
+                            {u.roleId <= 2 ? '管理人员' : (u.identity || '普通学生')}
+                          </span>
+                        </td>
                         <td>{u.major}</td>
                         <td>{u.grade}</td>
                         <td>

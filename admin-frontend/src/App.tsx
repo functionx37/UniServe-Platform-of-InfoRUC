@@ -881,7 +881,7 @@ function App() {
                 <label>更新培养方案 (支持 .xlsx)</label>
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                   <button 
-                    className="btn btn-ghost" 
+、                    className="btn btn-ghost" 
                     onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('courses'), 'courses_import_template.xlsx')}
                     style={{ display: 'flex', alignItems: 'center' }}
                   >

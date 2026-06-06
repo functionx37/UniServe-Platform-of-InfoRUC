@@ -64,6 +64,18 @@ Page({
       todos
     }
   },
+  decorateNodes(nodes) {
+    const list = Array.isArray(nodes) ? nodes : []
+    return list.map((n) => {
+      const title = n && n.title ? String(n.title) : ""
+      const desc = n && n.desc ? String(n.desc) : ""
+      const needReport = title.indexOf("预备") >= 0 || desc.indexOf("预备") >= 0
+      if (!needReport) return { ...n }
+      const suffix = "（提示：该节点 3 个月内需提交报告）"
+      const nextDesc = desc.indexOf("3 个月内需提交报告") >= 0 ? desc : (desc ? desc + suffix : suffix)
+      return { ...n, desc: nextDesc }
+    })
+  },
   async load() {
     if (this.data.loading) return
     this.setData({ loading: true, errorMsg: "" })
@@ -77,7 +89,11 @@ Page({
             ? this.findCurrentIndex(rawProgress.nodes)
             : null
           : saved
-      const progress = overrideIndex === null ? rawProgress : this.buildDisplayProgress(rawProgress, overrideIndex)
+      const decoratedRaw =
+        rawProgress && Array.isArray(rawProgress.nodes)
+          ? { ...rawProgress, nodes: this.decorateNodes(rawProgress.nodes) }
+          : rawProgress
+      const progress = overrideIndex === null ? decoratedRaw : this.buildDisplayProgress(decoratedRaw, overrideIndex)
       const percent = progress ? Number(progress.progressPercent) || 0 : 0
       this.setData({
         progress,

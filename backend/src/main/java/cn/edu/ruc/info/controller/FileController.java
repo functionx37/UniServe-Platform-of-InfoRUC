@@ -2,6 +2,8 @@ package cn.edu.ruc.info.controller;
 
 import cn.edu.ruc.info.common.Result;
 import cn.edu.ruc.info.entity.GeneratedProof;
+import cn.edu.ruc.info.entity.User;
+import cn.edu.ruc.info.mapper.UserMapper;
 import cn.edu.ruc.info.service.ApplicationService;
 import cn.edu.ruc.info.service.FileStorageService;
 import cn.edu.ruc.info.service.ProofGenerationService;
@@ -32,15 +34,18 @@ public class FileController {
     private final ApplicationService applicationService;
     private final FileStorageService fileStorageService;
     private final StoragePathHelper storagePathHelper;
+    private final UserMapper userMapper;
 
     public FileController(ProofGenerationService proofGenerationService,
             ApplicationService applicationService,
             FileStorageService fileStorageService,
-            StoragePathHelper storagePathHelper) {
+            StoragePathHelper storagePathHelper,
+            UserMapper userMapper) {
         this.proofGenerationService = proofGenerationService;
         this.applicationService = applicationService;
         this.fileStorageService = fileStorageService;
         this.storagePathHelper = storagePathHelper;
+        this.userMapper = userMapper;
     }
 
     @PostMapping("/upload")
@@ -127,14 +132,79 @@ public class FileController {
                 .body(resource);
     }
 
+    @GetMapping("/proofs/preview")
+    public ResponseEntity<byte[]> previewProof(
+            @RequestParam("typeKey") String typeKey,
+            @RequestParam(value = "purpose", required = false) String purpose,
+            @RequestParam(value = "receiver", required = false) String receiver,
+            @RequestParam(value = "partyJoinDate", required = false) String partyJoinDate,
+            @RequestParam(value = "leaveStart", required = false) String leaveStart,
+            @RequestParam(value = "leaveEnd", required = false) String leaveEnd,
+            @RequestParam(value = "reason", required = false) String reason) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return ResponseEntity.status(404).build();
+        }
+        Map<String, Object> form = new HashMap<>();
+        if (purpose != null) {
+            form.put("purpose", purpose);
+        }
+        if (receiver != null) {
+            form.put("receiver", receiver);
+        }
+        if (partyJoinDate != null) {
+            form.put("partyJoinDate", partyJoinDate);
+        }
+        if (leaveStart != null) {
+            form.put("leaveStart", leaveStart);
+        }
+        if (leaveEnd != null) {
+            form.put("leaveEnd", leaveEnd);
+        }
+        if (reason != null) {
+            form.put("reason", reason);
+        }
+        byte[] pdf;
+        try {
+            pdf = proofGenerationService.generatePreview(typeKey, user, form);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(400).build();
+        }
+        String fileName = "proof_preview.pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename*=UTF-8''" + java.net.URLEncoder.encode(fileName, StandardCharsets.UTF_8))
+                .body(pdf);
+    }
+
     @GetMapping("/proofs/{proofId}")
     public ResponseEntity<Resource> downloadProof(@PathVariable String proofId) {
-        GeneratedProof proof = proofGenerationService.findById(proofId);
-        applicationService.requireVisibleApplication(proof.getApplicationId());
+        GeneratedProof proof;
+        try {
+            proof = proofGenerationService.findById(proofId);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            applicationService.requireVisibleApplication(proof.getApplicationId());
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).build();
+        }
         Long currentUserId = UserContext.getUserId();
         Integer role = UserContext.getRoleId();
-        if (currentUserId == null || ((role == null || (role != 1 && role != 2)) && !proof.getUserId().equals(currentUserId))) {
-            throw new RuntimeException("无权限下载该证明");
+        if (currentUserId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        if ((role == null || (role != 1 && role != 2)) && !proof.getUserId().equals(currentUserId)) {
+            return ResponseEntity.status(403).build();
+        }
+        if (proof.getFilePath() == null || proof.getFilePath().isBlank() || !Files.exists(Path.of(proof.getFilePath()))) {
+            return ResponseEntity.notFound().build();
         }
         Resource resource = new FileSystemResource(proof.getFilePath());
         return ResponseEntity.ok()

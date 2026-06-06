@@ -61,7 +61,8 @@
       <view style="height: 10rpx"></view>
       <view class="row">
         <text class="u-text">{{result.title || '结果文件'}}</text>
-        <button size="mini" class="u-btn u-btn--secondary" bindtap="openResult">复制下载链接</button>
+        <button size="mini" class="u-btn u-btn--secondary" bindtap="previewResult">预览</button>
+        <button size="mini" class="u-btn u-btn--primary" bindtap="downloadResult">下载</button>
       </view>
     </view>
   </view>

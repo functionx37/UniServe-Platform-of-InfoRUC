@@ -56,13 +56,13 @@
 
     <view style="height: 16rpx"></view>
 
-    <view class="u-card u-card--flat" style="padding: 18rpx 20rpx" wx:if="{{result && result.downloadable}}">
+    <view class="u-card u-card--flat" style="padding: 18rpx 20rpx" wx:if="{{proofActions}}">
       <view class="u-title" style="font-size: 32rpx">申请结果</view>
       <view style="height: 10rpx"></view>
       <view class="row">
-        <text class="u-text">{{result.title || '结果文件'}}</text>
-        <button size="mini" class="u-btn u-btn--secondary" bindtap="previewResult">预览</button>
-        <button size="mini" class="u-btn u-btn--primary" bindtap="downloadResult">下载</button>
+        <text class="u-text">{{proofActions.title || '结果文件'}}</text>
+        <button size="mini" class="u-btn u-btn--secondary" bindtap="previewProof">预览</button>
+        <button size="mini" class="u-btn u-btn--primary" bindtap="downloadProof">下载</button>
       </view>
     </view>
   </view>

@@ -1,4 +1,5 @@
 const application = require("../../services/application")
+const fileService = require("../../services/file")
 const { ensureLoggedIn } = require("../../utils/storage")
 const { maskPhone } = require("../../utils/mask")
 
@@ -92,15 +93,42 @@ Page({
     if (!url) return
     wx.setClipboardData({ data: url })
   },
-  openResult() {
+  previewResult() {
     if (!this.data.result || !this.data.result.url) return
-    wx.showModal({
-      title: this.data.result.title || "申请结果",
-      content: "请复制链接后在浏览器打开下载。",
-      confirmText: "复制链接",
-      success: (r) => {
-        if (r.confirm) wx.setClipboardData({ data: this.data.result.url })
-      }
-    })
+    wx.showLoading({ title: "打开中...", mask: true })
+    fileService
+      .downloadAndOpenDocument({ url: this.data.result.url, fileType: "pdf", showMenu: false })
+      .catch((e) => {
+        wx.showModal({
+          title: this.data.result.title || "申请结果",
+          content: `无法直接预览（${(e && e.message) || "未知错误"}），请复制链接后在浏览器打开下载。`,
+          confirmText: "复制链接",
+          success: (r) => {
+            if (r.confirm) wx.setClipboardData({ data: this.data.result.url })
+          }
+        })
+      })
+      .finally(() => {
+        wx.hideLoading()
+      })
+  },
+  downloadResult() {
+    if (!this.data.result || !this.data.result.url) return
+    wx.showLoading({ title: "下载中...", mask: true })
+    fileService
+      .downloadAndOpenDocument({ url: this.data.result.url, fileType: "pdf", showMenu: true })
+      .catch((e) => {
+        wx.showModal({
+          title: this.data.result.title || "申请结果",
+          content: `无法直接下载（${(e && e.message) || "未知错误"}），请复制链接后在浏览器打开下载。`,
+          confirmText: "复制链接",
+          success: (r) => {
+            if (r.confirm) wx.setClipboardData({ data: this.data.result.url })
+          }
+        })
+      })
+      .finally(() => {
+        wx.hideLoading()
+      })
   }
 })

@@ -1,5 +1,4 @@
 const userService = require("../../services/user")
-const fileService = require("../../services/file")
 const { ensureLoggedIn, getToken, getUser, clearToken, clearUser, setUser } = require("../../utils/storage")
 const { maskPhone, maskIdCard } = require("../../utils/mask")
 
@@ -71,22 +70,6 @@ Page({
   },
   goUploads() {
     wx.navigateTo({ url: "/pages/transcript-upload/index" })
-  },
-  async previewIdCert() {
-    if (!ensureLoggedIn()) return
-    const url = `/files/proofs/preview?typeKey=id_cert&purpose=${encodeURIComponent("身份核验")}&receiver=${encodeURIComponent("相关单位")}`
-    wx.showLoading({ title: "生成中...", mask: true })
-    try {
-      await fileService.downloadAndOpenDocument({ url, fileType: "pdf" })
-    } catch (e) {
-      wx.showModal({
-        title: "打开失败",
-        content: (e && e.message) || "生成身份证明失败，请稍后重试",
-        showCancel: false
-      })
-    } finally {
-      wx.hideLoading()
-    }
   },
   logout() {
     clearToken()

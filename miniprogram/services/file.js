@@ -94,7 +94,28 @@ function downloadAndOpenDocument({ url, fileType, fileName, showMenu }) {
       success(res) {
         const statusCode = Number(res && res.statusCode) || 0
         if (statusCode < 200 || statusCode >= 300) {
-          reject({ code: "HTTP_ERROR", message: `HTTP 状态码异常：${statusCode}`, statusCode })
+          const tempFilePath = res && res.tempFilePath
+          if (!tempFilePath) {
+            reject({ code: "HTTP_ERROR", message: `HTTP 状态码异常：${statusCode}`, statusCode })
+            return
+          }
+          try {
+            const fs = wx.getFileSystemManager()
+            fs.readFile({
+              filePath: tempFilePath,
+              encoding: "utf8",
+              success(r) {
+                const text = String((r && r.data) || "")
+                const snippet = text.length > 500 ? text.slice(0, 500) + "…" : text
+                reject({ code: "HTTP_ERROR", message: `HTTP 状态码异常：${statusCode}（${snippet || "无响应内容"}）`, statusCode })
+              },
+              fail() {
+                reject({ code: "HTTP_ERROR", message: `HTTP 状态码异常：${statusCode}`, statusCode })
+              }
+            })
+          } catch (e) {
+            reject({ code: "HTTP_ERROR", message: `HTTP 状态码异常：${statusCode}`, statusCode })
+          }
           return
         }
         wx.openDocument({

@@ -9,6 +9,8 @@ import cn.edu.ruc.info.service.FileStorageService;
 import cn.edu.ruc.info.service.ProofGenerationService;
 import cn.edu.ruc.info.util.StoragePathHelper;
 import cn.edu.ruc.info.util.UserContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -29,6 +31,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/files")
 public class FileController {
+
+    private static final Logger log = LoggerFactory.getLogger(FileController.class);
 
     private final ProofGenerationService proofGenerationService;
     private final ApplicationService applicationService;
@@ -141,76 +145,94 @@ public class FileController {
             @RequestParam(value = "leaveStart", required = false) String leaveStart,
             @RequestParam(value = "leaveEnd", required = false) String leaveEnd,
             @RequestParam(value = "reason", required = false) String reason) {
-        Long userId = UserContext.getUserId();
-        if (userId == null) {
-            return ResponseEntity.status(401).build();
-        }
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            return ResponseEntity.status(404).build();
-        }
-        Map<String, Object> form = new HashMap<>();
-        if (purpose != null) {
-            form.put("purpose", purpose);
-        }
-        if (receiver != null) {
-            form.put("receiver", receiver);
-        }
-        if (partyJoinDate != null) {
-            form.put("partyJoinDate", partyJoinDate);
-        }
-        if (leaveStart != null) {
-            form.put("leaveStart", leaveStart);
-        }
-        if (leaveEnd != null) {
-            form.put("leaveEnd", leaveEnd);
-        }
-        if (reason != null) {
-            form.put("reason", reason);
-        }
-        byte[] pdf;
+        Long userId = null;
         try {
-            pdf = proofGenerationService.generatePreview(typeKey, user, form);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(400).build();
+            userId = UserContext.getUserId();
+            if (userId == null) {
+                return jsonBytes(401, "{\"success\":false,\"message\":\"未登录\"}");
+            }
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                return jsonBytes(404, "{\"success\":false,\"message\":\"用户不存在\"}");
+            }
+            Map<String, Object> form = new HashMap<>();
+            if (purpose != null) {
+                form.put("purpose", purpose);
+            }
+            if (receiver != null) {
+                form.put("receiver", receiver);
+            }
+            if (partyJoinDate != null) {
+                form.put("partyJoinDate", partyJoinDate);
+            }
+            if (leaveStart != null) {
+                form.put("leaveStart", leaveStart);
+            }
+            if (leaveEnd != null) {
+                form.put("leaveEnd", leaveEnd);
+            }
+            if (reason != null) {
+                form.put("reason", reason);
+            }
+            byte[] pdf = proofGenerationService.generatePreview(typeKey, user, form);
+            String fileName = "proof_preview.pdf";
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "inline; filename*=UTF-8''" + java.net.URLEncoder.encode(fileName, StandardCharsets.UTF_8))
+                    .body(pdf);
+        } catch (Throwable t) {
+            log.error("previewProof failed: typeKey={}, userId={}", typeKey, userId, t);
+            String msg = t.getClass().getSimpleName() + (t.getMessage() == null ? "" : (": " + t.getMessage()));
+            return jsonBytes(500, "{\"success\":false,\"message\":\"" + escapeJson(msg) + "\"}");
         }
-        String fileName = "proof_preview.pdf";
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename*=UTF-8''" + java.net.URLEncoder.encode(fileName, StandardCharsets.UTF_8))
-                .body(pdf);
     }
 
     @GetMapping("/proofs/{proofId}")
     public ResponseEntity<Resource> downloadProof(@PathVariable String proofId) {
-        GeneratedProof proof;
         try {
-            proof = proofGenerationService.findById(proofId);
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            GeneratedProof proof;
+            try {
+                proof = proofGenerationService.findById(proofId);
+            } catch (RuntimeException e) {
+                return ResponseEntity.notFound().build();
+            }
+            try {
+                applicationService.requireVisibleApplication(proof.getApplicationId());
+            } catch (RuntimeException e) {
+                return ResponseEntity.status(403).build();
+            }
+            Long currentUserId = UserContext.getUserId();
+            Integer role = UserContext.getRoleId();
+            if (currentUserId == null) {
+                return ResponseEntity.status(401).build();
+            }
+            if ((role == null || (role != 1 && role != 2)) && !proof.getUserId().equals(currentUserId)) {
+                return ResponseEntity.status(403).build();
+            }
+            if (proof.getFilePath() == null || proof.getFilePath().isBlank() || !Files.exists(Path.of(proof.getFilePath()))) {
+                return ResponseEntity.notFound().build();
+            }
+            Resource resource = new FileSystemResource(proof.getFilePath());
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(proof.getFileName(), StandardCharsets.UTF_8))
+                    .body(resource);
+        } catch (Throwable t) {
+            log.error("downloadProof failed: proofId={}", proofId, t);
+            return ResponseEntity.status(500).build();
         }
-        try {
-            applicationService.requireVisibleApplication(proof.getApplicationId());
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(403).build();
-        }
-        Long currentUserId = UserContext.getUserId();
-        Integer role = UserContext.getRoleId();
-        if (currentUserId == null) {
-            return ResponseEntity.status(401).build();
-        }
-        if ((role == null || (role != 1 && role != 2)) && !proof.getUserId().equals(currentUserId)) {
-            return ResponseEntity.status(403).build();
-        }
-        if (proof.getFilePath() == null || proof.getFilePath().isBlank() || !Files.exists(Path.of(proof.getFilePath()))) {
-            return ResponseEntity.notFound().build();
-        }
-        Resource resource = new FileSystemResource(proof.getFilePath());
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(proof.getFileName(), StandardCharsets.UTF_8))
-                .body(resource);
+    }
+
+    private ResponseEntity<byte[]> jsonBytes(int status, String json) {
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(json.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String escapeJson(String text) {
+        String s = String.valueOf(text == null ? "" : text);
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 }

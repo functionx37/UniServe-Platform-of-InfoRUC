@@ -22,12 +22,23 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 public class TranscriptParsingService {
 
+    private static final Pattern SEMESTER_HEADER_PATTERN = Pattern.compile("^20\\d{2}-20\\d{2}学年\\s*(秋季学期|春季学期|夏季学期)$");
+    private static final Pattern SEMESTER_SEGMENT_PATTERN = Pattern.compile("20\\d{2}-20\\d{2}学年\\s*(秋季学期|春季学期|夏季学期)");
     private static final Pattern PDF_LINE_PATTERN = Pattern.compile(
             "^(.+?)\\s+([0-9]+(?:\\.[0-9]+)?)\\s+([0-9]{2,3}(?:\\.[0-9]+)?|合格|通过)?\\s*(通识课程|专业必修|专业选修|实践环节|未分类)?\\s*(20\\d{2}[-—]?[12])?$");
+    private static final Set<String> PDF_SKIP_LINES = Set.of(
+            "学生成绩单",
+            "课程名称",
+            "学分",
+            "成绩",
+            "学分绩点",
+            "总取得学分",
+            "制表单位：教务处");
 
     public ParseResult parse(Path filePath, String originalFileName, Long userId) {
         String extension = getExtension(originalFileName);
@@ -167,6 +178,17 @@ public class TranscriptParsingService {
         if (!StringUtils.hasText(text)) {
             throw new RuntimeException("解析失败：文件内容无法识别，请确认上传的是文本型 PDF 成绩单");
         }
+        List<AcademicRecord> records = parsePdfTabular(text, userId);
+        if (records.isEmpty()) {
+            records = parsePdfTranscriptLayout(text, userId);
+        }
+        if (records.isEmpty()) {
+            throw new RuntimeException("解析失败：文件内容无法识别，请确认上传的是规范的文本型 PDF 成绩单");
+        }
+        return deduplicateRecords(records);
+    }
+
+    private List<AcademicRecord> parsePdfTabular(String text, Long userId) {
         List<AcademicRecord> records = new ArrayList<>();
         for (String line : text.split("\\R")) {
             String trimmed = line.trim();
@@ -185,10 +207,57 @@ public class TranscriptParsingService {
                     defaultIfBlank(matcher.group(4), "未分类"),
                     matcher.group(5)));
         }
-        if (records.isEmpty()) {
-            throw new RuntimeException("解析失败：文件内容无法识别，请确认上传的是规范的文本型 PDF 成绩单");
+        return records;
+    }
+
+    private List<AcademicRecord> parsePdfTranscriptLayout(String text, Long userId) {
+        List<String> knownCourseNames = loadKnownCourseNames();
+        if (knownCourseNames.isEmpty()) {
+            return List.of();
+        }
+        List<AcademicRecord> records = new ArrayList<>();
+        String compactText = text.replace('\u000c', ' ')
+                .replaceAll("\\s+", " ")
+                .trim();
+        Matcher segmentMatcher = SEMESTER_SEGMENT_PATTERN.matcher(compactText);
+        List<SemesterSegment> segments = new ArrayList<>();
+        while (segmentMatcher.find()) {
+            segments.add(new SemesterSegment(segmentMatcher.group().replaceAll("\\s+", ""), segmentMatcher.start(), segmentMatcher.end()));
+        }
+        if (segments.isEmpty()) {
+            return records;
+        }
+        Set<String> seenKeys = new LinkedHashSet<>();
+        for (int i = 0; i < segments.size(); i++) {
+            SemesterSegment segment = segments.get(i);
+            int contentStart = segment.end();
+            int contentEnd = i + 1 < segments.size() ? segments.get(i + 1).start() : compactText.length();
+            String content = compactText.substring(contentStart, contentEnd).trim();
+            if (!StringUtils.hasText(content)) {
+                continue;
+            }
+            List<String> matchedCourses = knownCourseNames.stream()
+                    .filter(content::contains)
+                    .sorted(Comparator.comparingInt(String::length).reversed())
+                    .collect(Collectors.toList());
+            for (String courseName : matchedCourses) {
+                String dedupeKey = segment.semester() + "|" + courseName;
+                if (!seenKeys.add(dedupeKey)) {
+                    continue;
+                }
+                records.add(buildRecord(userId, courseName, null, null, "未分类", segment.semester()));
+            }
         }
         return records;
+    }
+
+    private List<AcademicRecord> deduplicateRecords(List<AcademicRecord> records) {
+        Map<String, AcademicRecord> deduped = new LinkedHashMap<>();
+        for (AcademicRecord record : records) {
+            String key = defaultIfBlank(record.getSemester(), "") + "|" + defaultIfBlank(record.getCourseName(), "");
+            deduped.putIfAbsent(key, record);
+        }
+        return new ArrayList<>(deduped.values());
     }
 
     private AcademicRecord buildRecord(Long userId,
@@ -230,12 +299,12 @@ public class TranscriptParsingService {
 
     private BigDecimal parseDecimal(String input) {
         if (!StringUtils.hasText(input)) {
-            return BigDecimal.ZERO;
+            return null;
         }
         try {
             return BigDecimal.valueOf(Double.parseDouble(input.trim()));
         } catch (Exception e) {
-            return BigDecimal.ZERO;
+            return null;
         }
     }
 
@@ -259,6 +328,78 @@ public class TranscriptParsingService {
 
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    private boolean shouldSkipPdfLine(String line) {
+        if (!StringUtils.hasText(line)) {
+            return true;
+        }
+        String trimmed = line.trim();
+        if (PDF_SKIP_LINES.contains(trimmed)) {
+            return true;
+        }
+        if (trimmed.startsWith("学号") || trimmed.startsWith("姓名") || trimmed.startsWith("院系")
+                || trimmed.startsWith("专业") || trimmed.startsWith("层次") || trimmed.startsWith("学制")
+                || trimmed.startsWith("日期") || trimmed.startsWith("第") || trimmed.startsWith("A(")
+                || trimmed.startsWith("B(") || trimmed.startsWith("C(") || trimmed.startsWith("D(")
+                || trimmed.startsWith("P(") || trimmed.startsWith("F(") || trimmed.startsWith("平均学分绩点")
+                || trimmed.startsWith("每门课学分绩点") || trimmed.startsWith("学分绩点核算方法")
+                || trimmed.startsWith("总取得学分包含")) {
+            return true;
+        }
+        if (trimmed.matches("^[0-9]+$")) {
+            return true;
+        }
+        return trimmed.matches("^总取得学分：.*$");
+    }
+
+    private boolean looksLikeCourseName(String line) {
+        String trimmed = line.trim();
+        if (trimmed.length() <= 1) {
+            return false;
+        }
+        if (trimmed.matches("^[0-9].*")) {
+            return false;
+        }
+        return trimmed.chars().anyMatch(ch -> Character.UnicodeScript.of(ch) == Character.UnicodeScript.HAN
+                || Character.isLetter(ch));
+    }
+
+    private String normalizeSemesterHeader(String header) {
+        return header.replaceAll("\\s+", "");
+    }
+
+    private List<String> loadKnownCourseNames() {
+        Path curriculumPath = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
+        if (!Files.exists(curriculumPath)) {
+            return List.of();
+        }
+        try (InputStream inputStream = Files.newInputStream(curriculumPath);
+                Workbook workbook = WorkbookFactory.create(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            if (sheet == null) {
+                return List.of();
+            }
+            DataFormatter formatter = new DataFormatter();
+            Map<String, Integer> headers = buildHeaderMap(sheet.getRow(sheet.getFirstRowNum()), formatter);
+            List<String> courseNames = new ArrayList<>();
+            for (int i = sheet.getFirstRowNum() + 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
+                String courseName = getCell(headers, row, formatter, "课程名", "课程", "课程名称");
+                if (StringUtils.hasText(courseName)) {
+                    courseNames.add(courseName.trim());
+                }
+            }
+            return courseNames;
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
+    private record SemesterSegment(String semester, int start, int end) {
     }
 
     @Data

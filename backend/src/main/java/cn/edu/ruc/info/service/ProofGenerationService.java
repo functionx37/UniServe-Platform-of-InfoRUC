@@ -13,6 +13,7 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -125,7 +126,9 @@ public class ProofGenerationService {
         PDPage page = new PDPage(PDRectangle.A4);
         document.addPage(page);
         boolean hasUnicodeFont = fontPath != null;
-        PDFont font = hasUnicodeFont ? PDType0Font.load(document, fontPath.toFile()) : PDType1Font.HELVETICA;
+        PDFont font = hasUnicodeFont
+                ? PDType0Font.load(document, fontPath.toFile())
+                : new PDType1Font(Standard14Fonts.FontName.HELVETICA);
         String title = hasUnicodeFont ? proofType : "Proof";
         List<String> lines = hasUnicodeFont ? buildContentLines(proofType, user, form) : buildAsciiFallbackLines(proofType, user, form);
 

@@ -14,9 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class AcademicService {
@@ -27,50 +29,48 @@ public class AcademicService {
     private final StoragePathHelper storagePathHelper;
     private final TranscriptParsingService transcriptParsingService;
     private final CurriculumService curriculumService;
+    private final AcademicAnalysisEngine academicAnalysisEngine;
 
     public AcademicService(TranscriptUploadMapper transcriptUploadMapper,
             AcademicRecordMapper academicRecordMapper,
             FileStorageService fileStorageService,
             StoragePathHelper storagePathHelper,
             TranscriptParsingService transcriptParsingService,
-            CurriculumService curriculumService) {
+            CurriculumService curriculumService,
+            AcademicAnalysisEngine academicAnalysisEngine) {
         this.transcriptUploadMapper = transcriptUploadMapper;
         this.academicRecordMapper = academicRecordMapper;
         this.fileStorageService = fileStorageService;
         this.storagePathHelper = storagePathHelper;
         this.transcriptParsingService = transcriptParsingService;
         this.curriculumService = curriculumService;
+        this.academicAnalysisEngine = academicAnalysisEngine;
     }
 
     public OverviewVO getOverview() {
         Long userId = requireUserId();
         TranscriptUpload upload = getLatestUpload(userId, null);
-        List<AcademicRecord> records = listUserRecords(userId);
-
         CurriculumService.CurriculumDefinition definition = null;
+        AcademicAnalysisEngine.AnalysisSnapshot snapshot = null;
+
         try {
             definition = curriculumService.getActiveDefinition();
+            List<AcademicRecord> records = academicAnalysisEngine.enrichRecords(listUserRecords(userId), definition);
+            if (upload != null && Boolean.TRUE.equals(upload.getParsed()) && !records.isEmpty()) {
+                snapshot = academicAnalysisEngine.analyze(records, definition, LocalDate.now());
+            }
         } catch (RuntimeException ignored) {
         }
 
-        double earnedCredits = records.stream()
-                .mapToDouble(record -> record.getCredits() == null ? 0.0 : record.getCredits().doubleValue())
-                .sum();
-        double totalCredits = definition == null ? 0.0
-                : definition.getRequiredModules().stream()
-                        .mapToDouble(module -> module.getRequiredCredits() == null ? 0.0 : module.getRequiredCredits())
-                        .sum();
-        double gapCredits = Math.max(0, totalCredits - earnedCredits);
-        int riskCount = (gapCredits > 0 ? 1 : 0) + (!records.isEmpty() && definition != null
-                ? countMissingRequiredCourses(records, definition).size() > 0 ? 1 : 0
-                : 0);
-
+        int riskCount = snapshot == null ? 0 : Math.max(0, snapshot.getRisks().size() - 1);
         return OverviewVO.builder()
                 .transcript(upload == null ? null : toTranscriptInfo(upload))
-                .totalCredits(totalCredits)
-                .earnedCredits(earnedCredits)
-                .gapCredits(gapCredits)
+                .totalCredits(snapshot == null ? 0.0 : snapshot.getTotalCredits())
+                .earnedCredits(snapshot == null ? 0.0 : snapshot.getEarnedCredits())
+                .gapCredits(snapshot == null ? 0.0 : snapshot.getGapCredits())
                 .riskCount(riskCount)
+                .metricLabel(definition == null ? "学分" : defaultMetricLabel(definition))
+                .preciseCredits(definition != null && Boolean.TRUE.equals(definition.getPreciseCredits()))
                 .build();
     }
 
@@ -86,67 +86,42 @@ public class AcademicService {
             throw new RuntimeException("成绩单解析成功，但未识别到课程数据");
         }
         CurriculumService.CurriculumDefinition definition = curriculumService.getActiveDefinition();
-
-        Map<String, AcademicRecord> courseIndex = records.stream()
-                .filter(record -> StringUtils.hasText(record.getCourseName()))
-                .collect(Collectors.toMap(
-                        record -> normalize(record.getCourseName()),
-                        record -> record,
-                        (left, right) -> left));
-
-        List<ModuleProgress> modules = definition.getRequiredModules().stream()
-                .map(module -> {
-                    double earned = records.stream()
-                            .map(record -> enrichCategory(record, definition))
-                            .filter(record -> module.getTitle().equals(record.getCategory()))
-                            .mapToDouble(record -> record.getCredits() == null ? 0.0 : record.getCredits().doubleValue())
-                            .sum();
-                    double required = module.getRequiredCredits() == null ? 0.0 : module.getRequiredCredits();
-                    int percent = required <= 0 ? 100 : (int) Math.min(100, Math.round(earned * 100 / required));
-                    return ModuleProgress.builder()
-                            .key(module.getKey())
-                            .title(module.getTitle())
-                            .requiredCredits(required)
-                            .earnedCredits(earned)
-                            .percent(percent)
-                            .gapCredits(Math.max(0, required - earned))
-                            .build();
-                })
-                .collect(Collectors.toList());
-
-        List<MissingCourse> missingCourses = countMissingRequiredCourses(records, definition);
-        double totalCredits = definition.getRequiredModules().stream()
-                .mapToDouble(module -> module.getRequiredCredits() == null ? 0.0 : module.getRequiredCredits())
-                .sum();
-        double earnedCredits = records.stream()
-                .mapToDouble(record -> record.getCredits() == null ? 0.0 : record.getCredits().doubleValue())
-                .sum();
-        double gapCredits = Math.max(0, totalCredits - earnedCredits);
-
-        List<String> risks = new ArrayList<>();
-        if (gapCredits > 0) {
-            risks.add("总学分仍存在 " + ((int) Math.ceil(gapCredits)) + " 学分缺口");
-        }
-        if (!missingCourses.isEmpty()) {
-            risks.add("仍有未完成必修课程：" + missingCourses.stream()
-                    .map(MissingCourse::getCourse)
-                    .collect(Collectors.joining("、")));
-        }
-        if (risks.isEmpty()) {
-            risks.add("当前未发现明显学业风险");
-        }
-
-        List<String> suggestions = buildSuggestions(modules, missingCourses, gapCredits);
+        academicAnalysisEngine.enrichRecords(records, definition);
+        AcademicAnalysisEngine.AnalysisSnapshot snapshot = academicAnalysisEngine.analyze(records, definition, LocalDate.now());
 
         return AnalysisVO.builder()
                 .transcript(toTranscriptInfo(upload))
-                .totalCredits(totalCredits)
-                .earnedCredits(earnedCredits)
-                .gapCredits(gapCredits)
-                .modules(modules)
-                .missingRequiredCourses(missingCourses)
-                .risks(risks)
-                .suggestions(suggestions)
+                .metricLabel(snapshot.getMetricLabel())
+                .preciseCredits(snapshot.isPreciseCredits())
+                .totalCredits(snapshot.getTotalCredits())
+                .earnedCredits(snapshot.getEarnedCredits())
+                .gapCredits(snapshot.getGapCredits())
+                .modules(snapshot.getModules().stream()
+                        .map(item -> ModuleProgress.builder()
+                                .key(item.getKey())
+                                .title(item.getTitle())
+                                .requiredCredits(item.getRequiredCredits())
+                                .earnedCredits(item.getEarnedCredits())
+                                .percent(item.getPercent())
+                                .gapCredits(item.getGapCredits())
+                                .build())
+                        .toList())
+                .missingRequiredCourses(snapshot.getMissingRequiredCourses().stream()
+                        .map(item -> MissingCourse.builder()
+                                .course(item.getCourse())
+                                .reason(item.getReason())
+                                .module(item.getModule())
+                                .offeredTerm(item.getOfferedTerm())
+                                .availableThisTerm(item.isAvailableThisTerm())
+                                .build())
+                        .toList())
+                .unfinishedGroups(snapshot.getUnfinishedGroups())
+                .recommendedCourses(snapshot.getRecommendedCourses())
+                .semesterContext(snapshot.getSemesterContext())
+                .matchedCourseCount(snapshot.getMatchedCourseCount())
+                .unmatchedTranscriptCourses(snapshot.getUnmatchedTranscriptCourses())
+                .risks(snapshot.getRisks())
+                .suggestions(snapshot.getSuggestions())
                 .build();
     }
 
@@ -175,12 +150,14 @@ public class AcademicService {
         transcriptUploadMapper.insert(upload);
 
         try {
+            CurriculumService.CurriculumDefinition definition = curriculumService.getActiveDefinition();
             TranscriptParsingService.ParseResult parseResult = transcriptParsingService.parse(
                     storedFile.path(),
                     storedFile.originalName(),
                     userId);
+            List<AcademicRecord> records = academicAnalysisEngine.enrichRecords(parseResult.getRecords(), definition);
             academicRecordMapper.delete(new LambdaQueryWrapper<AcademicRecord>().eq(AcademicRecord::getUserId, userId));
-            parseResult.getRecords().forEach(academicRecordMapper::insert);
+            records.forEach(academicRecordMapper::insert);
 
             upload.setParsed(true);
             upload.setParseMessage(parseResult.getMessage());
@@ -201,7 +178,9 @@ public class AcademicService {
     }
 
     private List<AcademicRecord> listUserRecords(Long userId) {
-        return academicRecordMapper.selectList(new LambdaQueryWrapper<AcademicRecord>().eq(AcademicRecord::getUserId, userId));
+        return academicRecordMapper.selectList(
+                new LambdaQueryWrapper<AcademicRecord>()
+                        .eq(AcademicRecord::getUserId, userId));
     }
 
     private TranscriptUpload getLatestUpload(Long userId, Boolean parsed) {
@@ -232,62 +211,8 @@ public class AcademicService {
                 .build();
     }
 
-    private AcademicRecord enrichCategory(AcademicRecord record, CurriculumService.CurriculumDefinition definition) {
-        if (StringUtils.hasText(record.getCategory()) && !"未分类".equals(record.getCategory())) {
-            return record;
-        }
-        String normalized = normalize(record.getCourseName());
-        definition.getRequiredCourses().stream()
-                .filter(course -> normalize(course.getCourseName()).equals(normalized))
-                .findFirst()
-                .ifPresent(course -> record.setCategory(course.getModule()));
-        if (!StringUtils.hasText(record.getCategory())) {
-            record.setCategory("未分类");
-        }
-        return record;
-    }
-
-    private List<MissingCourse> countMissingRequiredCourses(List<AcademicRecord> records,
-            CurriculumService.CurriculumDefinition definition) {
-        Set<String> learned = records.stream()
-                .map(AcademicRecord::getCourseName)
-                .filter(StringUtils::hasText)
-                .map(this::normalize)
-                .collect(Collectors.toSet());
-        return definition.getRequiredCourses().stream()
-                .filter(course -> Boolean.TRUE.equals(course.getRequired()))
-                .filter(course -> !learned.contains(normalize(course.getCourseName())))
-                .map(course -> MissingCourse.builder()
-                        .course(course.getCourseName())
-                        .reason(course.getModule() + " 必修未完成")
-                        .build())
-                .collect(Collectors.toList());
-    }
-
-    private List<String> buildSuggestions(List<ModuleProgress> modules, List<MissingCourse> missingCourses, double gapCredits) {
-        List<String> suggestions = new ArrayList<>();
-        if (!missingCourses.isEmpty()) {
-            suggestions.add("优先补齐必修课程：" + missingCourses.stream()
-                    .limit(3)
-                    .map(MissingCourse::getCourse)
-                    .collect(Collectors.joining("、")));
-        }
-        modules.stream()
-                .filter(module -> module.getGapCredits() > 0)
-                .sorted(Comparator.comparingDouble(ModuleProgress::getGapCredits).reversed())
-                .findFirst()
-                .ifPresent(module -> suggestions.add("当前模块缺口最大的是“" + module.getTitle() + "”，建议下学期优先补足相关课程"));
-        if (gapCredits > 0) {
-            suggestions.add("选课时优先覆盖缺口模块，避免将补修压力集中到毕业前");
-        }
-        if (suggestions.isEmpty()) {
-            suggestions.add("当前培养方案匹配情况良好，建议继续按计划完成后续课程");
-        }
-        return suggestions;
-    }
-
-    private String normalize(String input) {
-        return input == null ? "" : input.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+    private String defaultMetricLabel(CurriculumService.CurriculumDefinition definition) {
+        return StringUtils.hasText(definition.getMetricLabel()) ? definition.getMetricLabel() : "学分";
     }
 
     private String extensionOf(String fileName) {
@@ -305,17 +230,26 @@ public class AcademicService {
         private double earnedCredits;
         private double gapCredits;
         private int riskCount;
+        private String metricLabel;
+        private boolean preciseCredits;
     }
 
     @Data
     @Builder
     public static class AnalysisVO {
         private TranscriptInfo transcript;
+        private String metricLabel;
+        private boolean preciseCredits;
         private double totalCredits;
         private double earnedCredits;
         private double gapCredits;
         private List<ModuleProgress> modules;
         private List<MissingCourse> missingRequiredCourses;
+        private List<AcademicAnalysisEngine.UnfinishedGroupItem> unfinishedGroups;
+        private List<AcademicAnalysisEngine.RecommendationItem> recommendedCourses;
+        private AcademicAnalysisEngine.SemesterContext semesterContext;
+        private int matchedCourseCount;
+        private List<String> unmatchedTranscriptCourses;
         private List<String> risks;
         private List<String> suggestions;
     }
@@ -345,5 +279,8 @@ public class AcademicService {
     public static class MissingCourse {
         private String course;
         private String reason;
+        private String module;
+        private String offeredTerm;
+        private boolean availableThisTerm;
     }
 }

@@ -4,27 +4,19 @@ import cn.edu.ruc.info.entity.CurriculumFile;
 import cn.edu.ruc.info.entity.ImportSession;
 import cn.edu.ruc.info.mapper.CurriculumFileMapper;
 import cn.edu.ruc.info.mapper.ImportSessionMapper;
-import cn.edu.ruc.info.util.JsonUtils;
 import cn.edu.ruc.info.util.StoragePathHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.Builder;
 import lombok.Data;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class CurriculumService {
@@ -33,7 +25,7 @@ public class CurriculumService {
     private final ImportSessionMapper importSessionMapper;
     private final FileStorageService fileStorageService;
     private final StoragePathHelper storagePathHelper;
-    private final JsonUtils jsonUtils;
+    private final CurriculumDefinitionParser curriculumDefinitionParser;
     private final AuditLogService auditLogService;
     private volatile CurriculumDefinition cachedDefinition;
     private static final java.time.format.DateTimeFormatter FORMATTER = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -42,13 +34,13 @@ public class CurriculumService {
             ImportSessionMapper importSessionMapper,
             FileStorageService fileStorageService,
             StoragePathHelper storagePathHelper,
-            JsonUtils jsonUtils,
+            CurriculumDefinitionParser curriculumDefinitionParser,
             AuditLogService auditLogService) {
         this.curriculumFileMapper = curriculumFileMapper;
         this.importSessionMapper = importSessionMapper;
         this.fileStorageService = fileStorageService;
         this.storagePathHelper = storagePathHelper;
-        this.jsonUtils = jsonUtils;
+        this.curriculumDefinitionParser = curriculumDefinitionParser;
         this.auditLogService = auditLogService;
     }
 
@@ -66,7 +58,8 @@ public class CurriculumService {
                     "curriculum");
             Path actualPath = storedFile.path();
 
-            CurriculumDefinition definition = parseExcelDefinition(actualPath);
+            CurriculumDefinition definition = curriculumDefinitionParser.parseExcelDefinition(actualPath);
+            curriculumDefinitionParser.writeProcessedDefinition(actualPath, definition);
             cachedDefinition = definition;
 
             curriculumFileMapper.selectList(null).forEach(item -> {
@@ -104,6 +97,10 @@ public class CurriculumService {
                     .programName(definition.getProgramName())
                     .requiredModules(definition.getRequiredModules().size())
                     .requiredCourses(definition.getRequiredCourses().size())
+                    .requirementGroups(definition.getRequirementGroups().size())
+                    .preciseCredits(definition.getPreciseCredits())
+                    .metricLabel(definition.getMetricLabel())
+                    .processedFileName(curriculumDefinitionParser.getProcessedPath(actualPath).getFileName().toString())
                     .uploadedAt(curriculumFile.getUploadedAt().toString())
                     .build();
         } catch (RuntimeException e) {
@@ -127,6 +124,10 @@ public class CurriculumService {
                 .programName(definition.getProgramName())
                 .requiredModules(definition.getRequiredModules().size())
                 .requiredCourses(definition.getRequiredCourses().size())
+                .requirementGroups(definition.getRequirementGroups().size())
+                .preciseCredits(definition.getPreciseCredits())
+                .metricLabel(definition.getMetricLabel())
+                .processedFileName(curriculumDefinitionParser.getProcessedPath(Path.of(latest.getFilePath())).getFileName().toString())
                 .uploadedAt(latest.getUploadedAt() != null ? latest.getUploadedAt().toString() : null)
                 .build();
     }
@@ -136,6 +137,7 @@ public class CurriculumService {
         if (file == null) return false;
         
         fileStorageService.deleteFile(file.getFilePath());
+        fileStorageService.deleteFile(curriculumDefinitionParser.getProcessedPath(Path.of(file.getFilePath())).toString());
         curriculumFileMapper.deleteById(id);
         if (file.getActive()) {
             cachedDefinition = null;
@@ -154,99 +156,8 @@ public class CurriculumService {
         if (latest == null) {
             throw new RuntimeException("尚未上传培养方案");
         }
-        cachedDefinition = parseExcelDefinition(Path.of(latest.getFilePath()));
+        cachedDefinition = curriculumDefinitionParser.loadOrParse(Path.of(latest.getFilePath()));
         return cachedDefinition;
-    }
-
-    private CurriculumDefinition parseExcelDefinition(Path path) {
-        try (InputStream inputStream = Files.newInputStream(path);
-                Workbook workbook = WorkbookFactory.create(inputStream)) {
-            DataFormatter formatter = new DataFormatter();
-            Sheet sheet = workbook.getSheetAt(0);
-            if (sheet == null) {
-                throw new RuntimeException("培养方案文件为空");
-            }
-            Map<String, Integer> headerMap = buildHeaderMap(sheet.getRow(sheet.getFirstRowNum()), formatter);
-            List<RequiredCourse> courses = new ArrayList<>();
-            Map<String, Double> moduleCredits = new LinkedHashMap<>();
-            for (int i = sheet.getFirstRowNum() + 1; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) {
-                    continue;
-                }
-                String courseName = getCell(row, headerMap, formatter, "课程名", "课程");
-                if (!StringUtils.hasText(courseName)) {
-                    continue;
-                }
-                String module = defaultIfBlank(getCell(row, headerMap, formatter, "模块", "类别"), "未分类");
-                double credits = parseDouble(defaultIfBlank(getCell(row, headerMap, formatter, "学分"), "0"));
-                boolean required = !"否".equals(defaultIfBlank(getCell(row, headerMap, formatter, "是否必修", "必修"), "是"));
-                courses.add(RequiredCourse.builder()
-                        .courseName(courseName.trim())
-                        .module(module.trim())
-                        .credits(credits)
-                        .required(required)
-                        .build());
-                moduleCredits.put(module.trim(),
-                        moduleCredits.getOrDefault(module.trim(), 0.0) + credits);
-            }
-            CurriculumDefinition definition = CurriculumDefinition.builder()
-                    .programName(stripExtension(path.getFileName().toString()))
-                    .version(LocalDateTime.now().toString())
-                    .requiredModules(moduleCredits.entrySet().stream()
-                            .map(entry -> RequiredModule.builder()
-                                    .key(entry.getKey())
-                                    .title(entry.getKey())
-                                    .requiredCredits(entry.getValue())
-                                    .build())
-                            .collect(Collectors.toList()))
-                    .requiredCourses(courses)
-                    .build();
-            validateDefinition(definition);
-            return definition;
-        } catch (IOException e) {
-            throw new RuntimeException("解析培养方案 Excel 失败");
-        }
-    }
-
-    private void validateDefinition(CurriculumDefinition definition) {
-        if (definition == null || definition.getRequiredModules() == null || definition.getRequiredCourses() == null
-                || definition.getRequiredModules().isEmpty() || definition.getRequiredCourses().isEmpty()) {
-            throw new RuntimeException("培养方案内容不完整");
-        }
-    }
-
-    private Map<String, Integer> buildHeaderMap(Row headerRow, DataFormatter formatter) {
-        Map<String, Integer> headerMap = new HashMap<>();
-        if (headerRow == null) {
-            return headerMap;
-        }
-        for (int i = headerRow.getFirstCellNum(); i < headerRow.getLastCellNum(); i++) {
-            headerMap.put(formatter.formatCellValue(headerRow.getCell(i)).trim(), i);
-        }
-        return headerMap;
-    }
-
-    private String getCell(Row row, Map<String, Integer> headerMap, DataFormatter formatter, String... keys) {
-        for (String key : keys) {
-            Integer index = headerMap.get(key);
-            if (index != null && row.getCell(index) != null) {
-                return formatter.formatCellValue(row.getCell(index)).trim();
-            }
-        }
-        return "";
-    }
-
-    private String defaultIfBlank(String value, String defaultValue) {
-        return StringUtils.hasText(value) ? value : defaultValue;
-    }
-
-    private double parseDouble(String value) {
-        try {
-            return Double.parseDouble(value.trim());
-        } catch (Exception e) {
-            return 0.0;
-        }
     }
 
     private String getExtension(String fileName) {
@@ -256,16 +167,15 @@ public class CurriculumService {
         return fileName.substring(fileName.lastIndexOf('.')).toLowerCase(Locale.ROOT);
     }
 
-    private String stripExtension(String fileName) {
-        return fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
-    }
-
     @Data
     @Builder
     public static class CurriculumDefinition {
         private String programName;
         private String version;
+        private Boolean preciseCredits;
+        private String metricLabel;
         private List<RequiredModule> requiredModules;
+        private List<RequirementGroup> requirementGroups;
         private List<RequiredCourse> requiredCourses;
     }
 
@@ -275,6 +185,22 @@ public class CurriculumService {
         private String key;
         private String title;
         private Double requiredCredits;
+        private Integer requirementGroupCount;
+        private Integer courseEntryCount;
+    }
+
+    @Data
+    @Builder
+    public static class RequirementGroup {
+        private String key;
+        private String moduleKey;
+        private String moduleTitle;
+        private String ruleText;
+        private String ruleType;
+        private Integer requiredCount;
+        private Integer candidateCount;
+        private Double requiredCredits;
+        private List<RequiredCourse> courses;
     }
 
     @Data
@@ -282,8 +208,16 @@ public class CurriculumService {
     public static class RequiredCourse {
         private String courseName;
         private String module;
+        private String moduleKey;
+        private String groupKey;
         private Double credits;
         private Boolean required;
+        private String ruleText;
+        private String ruleType;
+        private Integer groupRequiredCount;
+        private String offeredTerm;
+        private List<String> offeredTermCodes;
+        private String normalizedName;
     }
 
     @Data
@@ -295,6 +229,10 @@ public class CurriculumService {
         private String programName;
         private Integer requiredModules;
         private Integer requiredCourses;
+        private Integer requirementGroups;
+        private Boolean preciseCredits;
+        private String metricLabel;
+        private String processedFileName;
         private String uploadedAt;
     }
 }

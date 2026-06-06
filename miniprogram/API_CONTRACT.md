@@ -238,12 +238,14 @@ const TIMEOUT = 10000
   - `earnedCredits: number`
   - `gapCredits: number`
   - `riskCount: number`
+  - `metricLabel?: string` 当前统计口径，可能为 `学分` 或 `课程要求单元`
+  - `preciseCredits?: boolean` 是否为精确学分模式
 - 当前 mock 字段：
   - `transcript` 来自内存态 `academicState.transcript`
   - `totalCredits/earnedCredits/gapCredits/riskCount`
 - 需要后端确认的问题：
   1. 学分字段命名是否一致（`totalCredits/earnedCredits/gapCredits`）？如不同需在 `services/academic.js` 映射。
-  2. 是否需要返回更细的“风险点列表”而不仅是 `riskCount`？
+  2. 当前后端已额外返回 `metricLabel/preciseCredits`，前端若要提示“当前按规则单元估算”，可直接使用。
 
 ### 6.2 学业分析结果
 
@@ -254,17 +256,24 @@ const TIMEOUT = 10000
 - 请求参数：无（当前实现依赖已上传成绩单的解析态）
 - 期望返回字段（`data`）：
   - `transcript`（同上）
+  - `metricLabel?: string`
+  - `preciseCredits?: boolean`
   - `totalCredits/earnedCredits/gapCredits`
   - `modules: Array<{ key: string, title: string, requiredCredits: number, earnedCredits: number, percent: number, gapCredits: number }>`
-  - `missingRequiredCourses: Array<{ course: string, reason: string }>`
+  - `missingRequiredCourses: Array<{ course: string, reason: string, module?: string, offeredTerm?: string, availableThisTerm?: boolean }>`
+  - `unfinishedGroups?: Array<{ groupKey: string, moduleTitle: string, ruleText: string, requiredCount: number, completedCount: number, gapCount: number, availableThisTermCount: number, candidateCourses: string[] }>`
+  - `recommendedCourses?: Array<{ course: string, module: string, ruleText?: string, offeredTerm?: string, recommendedFor?: string, availableThisTerm?: boolean, reason?: string }>`
+  - `semesterContext?: { currentDate: string, currentTermCode: string, currentLabel: string, nextTermCode: string, nextLabel: string }`
+  - `matchedCourseCount?: number`
+  - `unmatchedTranscriptCourses?: string[]`
   - `risks: string[]`
   - `suggestions: string[]`
 - 当前 mock 字段：
   - 若 `transcript.parsed !== true`，返回失败：`"尚未上传或解析成绩单，请先上传成绩单"`
   - `modules` 为前端可直接展示的结构（含 percent/gapCredits）
 - 需要后端确认的问题：
-  1. `modules` 是否由后端计算 percent/gapCredits？若后端仅返回 required/earned，前端也可计算，但建议后端统一输出，避免多端差异。
-  2. `missingRequiredCourses` 的字段命名（`course/reason`）是否一致？
+  1. `modules` 已由后端计算 `percent/gapCredits`，前端可直接展示。
+  2. 当前后端已保留旧字段 `missingRequiredCourses[].course/reason`，并补充了 `recommendedCourses/unfinishedGroups/semesterContext` 供后续页面增强使用。
 
 ---
 
@@ -282,14 +291,16 @@ const TIMEOUT = 10000
   - 额外 formData：当前未传（如后端需要学年/学期，可后续加）
 - 期望返回字段（JSON 字符串，解析后为 `{ success, message, data }`）：
   - `data.fileId: string` 上传文件标识
-  - 可选：`data.parsed: boolean`、`data.warnings: string[]`（页面当前未消费，可后续增强）
+  - `data.fileName?: string`
+  - `data.uploadedAt?: string`
+  - `data.parsed?: boolean`
 - 当前 mock 字段：
   - 若文件名包含 `invalid/错误`，返回失败：`解析失败：文件内容无法识别...`
   - 成功返回：`data: { fileId }`，并更新 `academicState.transcript = { fileId, fileName, uploadedAt, parsed: true }`
 - 需要后端确认的问题：
-  1. 上传接口返回体是否为 JSON 字符串且结构遵循 `{ success, message, data }`？（`wx.uploadFile` 的 `res.data` 为字符串，前端会 `JSON.parse`）
-  2. 后端是否需要额外参数（学号、学年学期、培养方案版本等）？
-  3. 上传后的解析是同步还是异步？若异步，建议提供解析任务 id 与查询接口（当前前端假设上传后可直接查看分析结果）。
+  1. 当前后端已按 `{ success, message, data }` 返回，且成绩单上传后同步解析，上传成功即可直接跳分析结果页。
+  2. 当前无需额外参数，登录态已用于区分学生。
+  3. 当前示例 PDF 解析已适配仓库样例，但扫描版 PDF 仍不保证成功。
 
 ---
 
@@ -435,4 +446,3 @@ const TIMEOUT = 10000
 ## 11. 变更记录（本次）
 
 - 新增文档：`miniprogram/API_CONTRACT.md`
-

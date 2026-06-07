@@ -302,16 +302,6 @@ public class ProofGenerationService {
     }
 
     private Path resolveFontPathOrNull() {
-        String override = System.getenv("APP_PDF_FONT_PATH");
-        if (override != null && !override.isBlank()) {
-            try {
-                Path p = Path.of(override.trim());
-                if (Files.exists(p) && Files.isRegularFile(p)) {
-                    return p;
-                }
-            } catch (Exception ignored) {
-            }
-        }
         for (String candidate : FONT_CANDIDATES) {
             Path path = Path.of(candidate);
             if (Files.exists(path)) {

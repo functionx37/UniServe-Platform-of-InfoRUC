@@ -59,6 +59,17 @@ public class CurriculumDefinitionParser {
         return definition;
     }
 
+    public void validateCompatibleWithSampleFormat(Path excelPath, Path samplePath) {
+        List<String> sampleHeaders = readHeaderCells(samplePath);
+        List<String> actualHeaders = readHeaderCells(excelPath);
+        if (sampleHeaders.isEmpty()) {
+            throw new RuntimeException("培养方案样例文件不可用，无法校验上传格式");
+        }
+        if (actualHeaders.isEmpty() || !sampleHeaders.equals(actualHeaders)) {
+            throw new RuntimeException("培养方案格式错误：请使用 file/培养方案示例/培养方案示例.xlsx 相同表头和列顺序");
+        }
+    }
+
     public CurriculumService.CurriculumDefinition parseExcelDefinition(Path path) {
         try (InputStream inputStream = Files.newInputStream(path);
                 Workbook workbook = WorkbookFactory.create(inputStream)) {
@@ -231,6 +242,31 @@ public class CurriculumDefinitionParser {
                     }
                 }
             }
+        }
+    }
+
+    private List<String> readHeaderCells(Path excelPath) {
+        try (InputStream inputStream = Files.newInputStream(excelPath);
+                Workbook workbook = WorkbookFactory.create(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            if (sheet == null) {
+                return List.of();
+            }
+            Row headerRow = sheet.getRow(sheet.getFirstRowNum());
+            if (headerRow == null) {
+                return List.of();
+            }
+            DataFormatter formatter = new DataFormatter();
+            List<String> headers = new ArrayList<>();
+            for (int i = headerRow.getFirstCellNum(); i < headerRow.getLastCellNum(); i++) {
+                String cellValue = formatter.formatCellValue(headerRow.getCell(i)).trim();
+                if (StringUtils.hasText(cellValue)) {
+                    headers.add(cellValue);
+                }
+            }
+            return headers;
+        } catch (IOException e) {
+            throw new RuntimeException("读取培养方案表头失败");
         }
     }
 

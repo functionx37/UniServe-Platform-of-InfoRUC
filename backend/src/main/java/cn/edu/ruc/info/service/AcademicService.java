@@ -154,7 +154,8 @@ public class AcademicService {
             TranscriptParsingService.ParseResult parseResult = transcriptParsingService.parse(
                     storedFile.path(),
                     storedFile.originalName(),
-                    userId);
+                    userId,
+                    definition);
             List<AcademicRecord> records = academicAnalysisEngine.enrichRecords(parseResult.getRecords(), definition);
             academicRecordMapper.delete(new LambdaQueryWrapper<AcademicRecord>().eq(AcademicRecord::getUserId, userId));
             records.forEach(academicRecordMapper::insert);

@@ -98,7 +98,17 @@ public class FileController {
         } else if ("users".equalsIgnoreCase(type)) {
             fileName = "users_import_template.xlsx";
         } else if ("courses".equalsIgnoreCase(type)) {
-            fileName = "courses_import_template.xlsx";
+            Path sampleCurriculumPath = Paths.get("file", "培养方案示例", "培养方案示例.xlsx").toAbsolutePath().normalize();
+            if (!Files.exists(sampleCurriculumPath)) {
+                sampleCurriculumPath = Paths.get("..", "file", "培养方案示例", "培养方案示例.xlsx").toAbsolutePath().normalize();
+            }
+            if (!Files.exists(sampleCurriculumPath)) {
+                return ResponseEntity.notFound().build();
+            }
+            Resource resource = new FileSystemResource(sampleCurriculumPath);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"培养方案示例.xlsx\"")
+                    .body(resource);
         } else {
             return ResponseEntity.badRequest().build();
         }

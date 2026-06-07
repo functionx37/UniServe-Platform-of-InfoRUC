@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +22,10 @@ import java.util.UUID;
 @Service
 public class CurriculumService {
 
+    private static final Path SAMPLE_CURRICULUM_PATH = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
+    private static final String SAMPLE_CURRICULUM_ID = "fixed-sample-curriculum";
+    private static final java.time.format.DateTimeFormatter FORMATTER = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private final CurriculumFileMapper curriculumFileMapper;
     private final ImportSessionMapper importSessionMapper;
     private final FileStorageService fileStorageService;
@@ -28,7 +33,6 @@ public class CurriculumService {
     private final CurriculumDefinitionParser curriculumDefinitionParser;
     private final AuditLogService auditLogService;
     private volatile CurriculumDefinition cachedDefinition;
-    private static final java.time.format.DateTimeFormatter FORMATTER = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public CurriculumService(CurriculumFileMapper curriculumFileMapper,
             ImportSessionMapper importSessionMapper,
@@ -51,6 +55,7 @@ public class CurriculumService {
             if (!List.of(".xlsx", ".xls").contains(extension)) {
                 throw new RuntimeException("培养方案仅支持 Excel 文件 (.xlsx, .xls)");
             }
+            ensureSampleCurriculumExists();
 
             FileStorageService.StoredFile storedFile = fileStorageService.saveMultipartFile(
                     file,
@@ -58,6 +63,7 @@ public class CurriculumService {
                     "curriculum");
             Path actualPath = storedFile.path();
 
+            curriculumDefinitionParser.validateCompatibleWithSampleFormat(actualPath, SAMPLE_CURRICULUM_PATH);
             CurriculumDefinition definition = curriculumDefinitionParser.parseExcelDefinition(actualPath);
             curriculumDefinitionParser.writeProcessedDefinition(actualPath, definition);
             cachedDefinition = definition;
@@ -78,7 +84,6 @@ public class CurriculumService {
             curriculumFile.setUploadedAt(LocalDateTime.now());
             curriculumFileMapper.insert(curriculumFile);
 
-            // 同步创建一条导入记录，以便仪表盘显示
             ImportSession session = new ImportSession();
             session.setId("curimp-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
             session.setFileName(originalName);
@@ -113,33 +118,53 @@ public class CurriculumService {
         CurriculumFile latest = curriculumFileMapper.selectOne(
                 new LambdaQueryWrapper<CurriculumFile>().eq(CurriculumFile::getActive, true)
                         .orderByDesc(CurriculumFile::getUploadedAt).last("limit 1"));
-        if (latest == null) {
-            throw new RuntimeException("尚未上传培养方案");
+        if (latest != null) {
+            CurriculumDefinition definition = getActiveDefinition();
+            return UploadResult.builder()
+                    .id(latest.getId())
+                    .fileName(latest.getFileName())
+                    .version(latest.getVersion())
+                    .programName(definition.getProgramName())
+                    .requiredModules(definition.getRequiredModules().size())
+                    .requiredCourses(definition.getRequiredCourses().size())
+                    .requirementGroups(definition.getRequirementGroups().size())
+                    .preciseCredits(definition.getPreciseCredits())
+                    .metricLabel(definition.getMetricLabel())
+                    .processedFileName(curriculumDefinitionParser.getProcessedPath(Path.of(latest.getFilePath())).getFileName().toString())
+                    .uploadedAt(latest.getUploadedAt() != null ? latest.getUploadedAt().toString() : null)
+                    .build();
         }
-        CurriculumDefinition definition = getActiveDefinition();
+
+        CurriculumDefinition definition = loadDefaultDefinition();
+        Path processedPath = curriculumDefinitionParser.getProcessedPath(SAMPLE_CURRICULUM_PATH);
         return UploadResult.builder()
-                .id(latest.getId())
-                .fileName(latest.getFileName())
-                .version(latest.getVersion())
+                .id(SAMPLE_CURRICULUM_ID)
+                .fileName(SAMPLE_CURRICULUM_PATH.getFileName() == null ? "培养方案示例.xlsx" : SAMPLE_CURRICULUM_PATH.getFileName().toString())
+                .version(definition.getVersion())
                 .programName(definition.getProgramName())
                 .requiredModules(definition.getRequiredModules().size())
                 .requiredCourses(definition.getRequiredCourses().size())
                 .requirementGroups(definition.getRequirementGroups().size())
                 .preciseCredits(definition.getPreciseCredits())
                 .metricLabel(definition.getMetricLabel())
-                .processedFileName(curriculumDefinitionParser.getProcessedPath(Path.of(latest.getFilePath())).getFileName().toString())
-                .uploadedAt(latest.getUploadedAt() != null ? latest.getUploadedAt().toString() : null)
+                .processedFileName(processedPath.getFileName() == null ? null : processedPath.getFileName().toString())
+                .uploadedAt(null)
                 .build();
     }
 
     public boolean delete(String id) {
+        if (SAMPLE_CURRICULUM_ID.equals(id)) {
+            return false;
+        }
         CurriculumFile file = curriculumFileMapper.selectById(id);
-        if (file == null) return false;
-        
+        if (file == null) {
+            return false;
+        }
+
         fileStorageService.deleteFile(file.getFilePath());
         fileStorageService.deleteFile(curriculumDefinitionParser.getProcessedPath(Path.of(file.getFilePath())).toString());
         curriculumFileMapper.deleteById(id);
-        if (file.getActive()) {
+        if (Boolean.TRUE.equals(file.getActive())) {
             cachedDefinition = null;
         }
         auditLogService.success("DELETE_CURRICULUM", id);
@@ -153,11 +178,23 @@ public class CurriculumService {
         CurriculumFile latest = curriculumFileMapper.selectOne(
                 new LambdaQueryWrapper<CurriculumFile>().eq(CurriculumFile::getActive, true)
                         .orderByDesc(CurriculumFile::getUploadedAt).last("limit 1"));
-        if (latest == null) {
-            throw new RuntimeException("尚未上传培养方案");
+        if (latest != null) {
+            cachedDefinition = curriculumDefinitionParser.loadOrParse(Path.of(latest.getFilePath()));
+            return cachedDefinition;
         }
-        cachedDefinition = curriculumDefinitionParser.loadOrParse(Path.of(latest.getFilePath()));
+        cachedDefinition = loadDefaultDefinition();
         return cachedDefinition;
+    }
+
+    private CurriculumDefinition loadDefaultDefinition() {
+        ensureSampleCurriculumExists();
+        return curriculumDefinitionParser.loadOrParse(SAMPLE_CURRICULUM_PATH);
+    }
+
+    private void ensureSampleCurriculumExists() {
+        if (!Files.exists(SAMPLE_CURRICULUM_PATH)) {
+            throw new RuntimeException("默认培养方案不存在：file/培养方案示例/培养方案示例.xlsx");
+        }
     }
 
     private String getExtension(String fileName) {

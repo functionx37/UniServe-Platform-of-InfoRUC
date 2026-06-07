@@ -41,6 +41,13 @@ public class TranscriptParsingService {
             "制表单位：教务处");
 
     public ParseResult parse(Path filePath, String originalFileName, Long userId) {
+        return parse(filePath, originalFileName, userId, null);
+    }
+
+    public ParseResult parse(Path filePath,
+            String originalFileName,
+            Long userId,
+            CurriculumService.CurriculumDefinition definition) {
         String extension = getExtension(originalFileName);
         List<AcademicRecord> records;
         if (".xlsx".equals(extension) || ".xls".equals(extension)) {
@@ -48,7 +55,7 @@ public class TranscriptParsingService {
         } else if (".csv".equals(extension)) {
             records = parseCsv(filePath, userId);
         } else if (".pdf".equals(extension)) {
-            records = parsePdf(filePath, userId);
+            records = parsePdf(filePath, userId, definition);
         } else {
             throw new RuntimeException("仅支持 PDF/Excel 成绩单");
         }
@@ -168,7 +175,7 @@ public class TranscriptParsingService {
         }
     }
 
-    private List<AcademicRecord> parsePdf(Path filePath, Long userId) {
+    private List<AcademicRecord> parsePdf(Path filePath, Long userId, CurriculumService.CurriculumDefinition definition) {
         String text;
         try (PDDocument document = Loader.loadPDF(filePath.toFile())) {
             text = new PDFTextStripper().getText(document);
@@ -180,7 +187,7 @@ public class TranscriptParsingService {
         }
         List<AcademicRecord> records = parsePdfTabular(text, userId);
         if (records.isEmpty()) {
-            records = parsePdfTranscriptLayout(text, userId);
+            records = parsePdfTranscriptLayout(text, userId, definition);
         }
         if (records.isEmpty()) {
             throw new RuntimeException("解析失败：文件内容无法识别，请确认上传的是规范的文本型 PDF 成绩单");
@@ -210,8 +217,10 @@ public class TranscriptParsingService {
         return records;
     }
 
-    private List<AcademicRecord> parsePdfTranscriptLayout(String text, Long userId) {
-        List<String> knownCourseNames = loadKnownCourseNames();
+    private List<AcademicRecord> parsePdfTranscriptLayout(String text,
+            Long userId,
+            CurriculumService.CurriculumDefinition definition) {
+        List<String> knownCourseNames = loadKnownCourseNames(definition);
         if (knownCourseNames.isEmpty()) {
             return List.of();
         }
@@ -369,7 +378,15 @@ public class TranscriptParsingService {
         return header.replaceAll("\\s+", "");
     }
 
-    private List<String> loadKnownCourseNames() {
+    private List<String> loadKnownCourseNames(CurriculumService.CurriculumDefinition definition) {
+        if (definition != null && definition.getRequiredCourses() != null && !definition.getRequiredCourses().isEmpty()) {
+            return definition.getRequiredCourses().stream()
+                    .map(CurriculumService.RequiredCourse::getCourseName)
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .distinct()
+                    .collect(Collectors.toList());
+        }
         Path curriculumPath = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
         if (!Files.exists(curriculumPath)) {
             return List.of();

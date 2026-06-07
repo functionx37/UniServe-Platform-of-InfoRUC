@@ -258,7 +258,7 @@ function App() {
   }
 
   const handleDeleteCurriculum = async (id: string) => {
-    if (!confirm('确定要删除这个培养方案吗？')) return
+    if (!confirm('确定要删除这个培养方案吗？删除后会回退到默认样例培养方案。')) return
     try {
       await adminApi.deleteCurriculum(id)
       refreshAll()
@@ -459,10 +459,12 @@ function App() {
     if (!file) return
     try {
       await adminApi.uploadCurriculum(file)
-      alert('培养方案更新成功')
+      alert('培养方案上传成功')
       refreshAll()
     } catch (err: any) {
       alert('上传失败: ' + err.message)
+    } finally {
+      e.target.value = ''
     }
   }
 
@@ -877,36 +879,41 @@ function App() {
               <div className="panel-header"><h3>本科培养方案管理</h3></div>
               {curriculum ? (
                 <div style={{ marginBottom: '32px', padding: '20px', background: 'var(--bg-workspace)', borderRadius: '12px', position: 'relative' }}>
-                  <button 
-                    className="btn btn-ghost" 
-                    style={{ position: 'absolute', top: '12px', right: '12px', color: 'var(--danger)' }}
-                    onClick={() => handleDeleteCurriculum(curriculum.id)}
-                  >
-                    🗑️ 删除此方案
-                  </button>
+                  {curriculum.id !== 'fixed-sample-curriculum' && (
+                    <button
+                      className="btn btn-ghost"
+                      style={{ position: 'absolute', top: '12px', right: '12px', color: 'var(--danger)' }}
+                      onClick={() => handleDeleteCurriculum(curriculum.id)}
+                    >
+                      🗑️ 删除此方案
+                    </button>
+                  )}
                   <h4 style={{ margin: '0 0 12px 0' }}>当前生效方案：{curriculum.programName}</h4>
                   <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>文件：{curriculum.fileName} (v{curriculum.version})</p>
-                  <p style={{ margin: 0, fontSize: '14px' }}>包含 <strong>{curriculum.requiredCourses}</strong> 门必修课，共 <strong>{curriculum.requiredModules}</strong> 个模块</p>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>包含 <strong>{curriculum.requiredCourses}</strong> 门必修课，共 <strong>{curriculum.requiredModules}</strong> 个模块</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)' }}>
+                    {curriculum.id === 'fixed-sample-curriculum' ? '当前使用默认样例培养方案。' : '当前使用管理员上传的培养方案。'}
+                  </p>
                 </div>
               ) : (
-                <p className="muted" style={{ textAlign: 'center', padding: '40px' }}>尚未配置培养方案，学生端学业分析将无法使用。</p>
+                <p className="muted" style={{ textAlign: 'center', padding: '40px' }}>未读取到培养方案，请检查默认样例文件是否存在。</p>
               )}
               <div className="form-group">
-                <label>更新培养方案 (支持 .xlsx)</label>
+                <label>更新培养方案</label>
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                  <button 
-                    className="btn btn-ghost" 
-                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('courses'), 'courses_import_template.xlsx')}
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('courses'), '培养方案示例.xlsx')}
                     style={{ display: 'flex', alignItems: 'center' }}
                   >
-                    📄 下载课程模板
+                    📄 下载培养方案示例
                   </button>
                 </div>
                 <label className="upload-area" style={{ display: 'block' }}>
-                  <input type="file" onChange={handleCurriculumUpload} accept=".xlsx" />
+                  <input type="file" onChange={handleCurriculumUpload} accept=".xlsx,.xls" />
                   <div style={{ fontSize: '24px', marginBottom: '8px' }}>📜</div>
                   <strong>上传培养方案 Excel</strong>
-                  <p style={{ fontSize: '12px', color: 'var(--muted)' }}>系统将解析 Excel 课程数据（详细解析算法优化中）</p>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)' }}>上传文件必须与样例保持相同表头和列顺序，否则会提示格式错误。</p>
                 </label>
               </div>
             </div>

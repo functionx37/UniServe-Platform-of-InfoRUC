@@ -5,11 +5,13 @@ import cn.edu.ruc.info.util.JsonUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AcademicAnalysisEngineTest {
@@ -77,4 +79,46 @@ class AcademicAnalysisEngineTest {
         assertEquals(1, snapshot.getMatchedCourseCount());
         assertFalse(snapshot.getUnmatchedTranscriptCourses().contains("高等数学I 周春来 部类基础 5 95 86"));
     }
+
+    @Test
+    void shouldMatchRealTranscriptPdfWhenLocalFileExists() {
+        Path curriculumPath = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
+        Path transcriptPath = Path.of("../file/1780845712735.pdf").normalize();
+        assumeTrue(Files.exists(transcriptPath), "local regression file not present");
+
+        CurriculumService.CurriculumDefinition definition = curriculumDefinitionParser.parseExcelDefinition(curriculumPath);
+        List<AcademicRecord> records = transcriptParsingService.parse(transcriptPath, "1780845712735.pdf", 1L).getRecords();
+        analysisEngine.enrichRecords(records, definition);
+        AcademicAnalysisEngine.AnalysisSnapshot snapshot =
+                analysisEngine.analyze(records, definition, LocalDate.of(2026, 6, 7));
+
+        assertFalse(records.isEmpty(), "real transcript parsed no course records");
+        assertTrue(snapshot.getMatchedCourseCount() > 0,
+                "real transcript matched 0 courses, unmatched=" + snapshot.getUnmatchedTranscriptCourses());
+        assertTrue(records.stream().anyMatch(record -> record.getCourseName().contains("高等数学")),
+                "real transcript did not include expected 高等数学 course, records=" + records);
+    }
+
+    @Test
+    void shouldValidateSampleCurriculumHeaderAgainstItself() {
+        Path curriculumPath = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
+        assertDoesNotThrow(() -> curriculumDefinitionParser.validateCompatibleWithSampleFormat(curriculumPath, curriculumPath));
+    }
+
+    @Test
+    void shouldRejectCurriculumWhenHeaderFormatDiffersFromSample() throws Exception {
+        Path tempFile = Files.createTempFile("bad-curriculum", ".xlsx");
+        Files.writeString(tempFile, "not-real-excel");
+        try {
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> curriculumDefinitionParser.validateCompatibleWithSampleFormat(
+                            tempFile,
+                            Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize()));
+            assertTrue(error.getMessage().contains("培养方案格式错误")
+                    || error.getMessage().contains("读取培养方案表头失败"));
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+    }
+
 }

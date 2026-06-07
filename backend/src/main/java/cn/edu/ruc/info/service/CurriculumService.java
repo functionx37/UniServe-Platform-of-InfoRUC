@@ -148,6 +148,7 @@ public class CurriculumService {
 
     public CurriculumDefinition getActiveDefinition() {
         if (cachedDefinition != null) {
+            normalizeDefinition(cachedDefinition);
             return cachedDefinition;
         }
         CurriculumFile latest = curriculumFileMapper.selectOne(
@@ -157,7 +158,57 @@ public class CurriculumService {
             throw new RuntimeException("尚未上传培养方案");
         }
         cachedDefinition = curriculumDefinitionParser.loadOrParse(Path.of(latest.getFilePath()));
+        normalizeDefinition(cachedDefinition);
         return cachedDefinition;
+    }
+
+    private void normalizeDefinition(CurriculumDefinition definition) {
+        if (definition == null) {
+            return;
+        }
+        if (definition.getRequiredCourses() != null) {
+            for (RequiredCourse course : definition.getRequiredCourses()) {
+                normalizeCourse(course);
+            }
+        }
+        if (definition.getRequirementGroups() != null) {
+            for (RequirementGroup group : definition.getRequirementGroups()) {
+                if (group == null || group.getCourses() == null) {
+                    continue;
+                }
+                for (RequiredCourse course : group.getCourses()) {
+                    normalizeCourse(course);
+                }
+            }
+        }
+    }
+
+    private void normalizeCourse(RequiredCourse course) {
+        if (course == null) {
+            return;
+        }
+        if (!StringUtils.hasText(course.getNormalizedName())) {
+            course.setNormalizedName(normalizeCourseName(course.getCourseName()));
+        }
+        if (!StringUtils.hasText(course.getModuleKey())) {
+            course.setModuleKey(normalizeCourseName(course.getModule()));
+        }
+    }
+
+    private String normalizeCourseName(String input) {
+        if (!StringUtils.hasText(input)) {
+            return "";
+        }
+        return input.trim()
+                .replace("Ⅰ", "I")
+                .replace("Ⅱ", "II")
+                .replace("Ⅲ", "III")
+                .replace("Ⅳ", "IV")
+                .replace("Ⅴ", "V")
+                .replace("（", "(")
+                .replace("）", ")")
+                .replaceAll("[\\s\\-—_/（）()【】\\[\\]·、,，.:：;；'\"`]+", "")
+                .toLowerCase(Locale.ROOT);
     }
 
     private String getExtension(String fileName) {

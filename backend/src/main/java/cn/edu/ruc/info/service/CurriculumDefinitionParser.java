@@ -48,6 +48,7 @@ public class CurriculumDefinitionParser {
                 CurriculumService.CurriculumDefinition definition = jsonUtils.fromJson(
                         json,
                         CurriculumService.CurriculumDefinition.class);
+                normalizeDefinition(definition);
                 validateDefinition(definition);
                 return definition;
             } catch (RuntimeException | IOException ignored) {
@@ -187,6 +188,42 @@ public class CurriculumDefinitionParser {
                 || definition.getRequirementGroups().isEmpty()
                 || definition.getRequiredCourses().isEmpty()) {
             throw new RuntimeException("培养方案内容不完整");
+        }
+    }
+
+    private void normalizeDefinition(CurriculumService.CurriculumDefinition definition) {
+        if (definition == null) {
+            return;
+        }
+        if (definition.getRequiredCourses() != null) {
+            for (CurriculumService.RequiredCourse course : definition.getRequiredCourses()) {
+                normalizeCourse(course);
+            }
+        }
+        if (definition.getRequirementGroups() != null) {
+            for (CurriculumService.RequirementGroup group : definition.getRequirementGroups()) {
+                if (group == null || group.getCourses() == null) {
+                    continue;
+                }
+                for (CurriculumService.RequiredCourse course : group.getCourses()) {
+                    normalizeCourse(course);
+                }
+            }
+        }
+    }
+
+    private void normalizeCourse(CurriculumService.RequiredCourse course) {
+        if (course == null) {
+            return;
+        }
+        if (!StringUtils.hasText(course.getNormalizedName())) {
+            course.setNormalizedName(normalizeCourseName(course.getCourseName()));
+        }
+        if (!StringUtils.hasText(course.getModuleKey())) {
+            course.setModuleKey(toKey(course.getModule()));
+        }
+        if (course.getOfferedTermCodes() == null) {
+            course.setOfferedTermCodes(parseOfferedTermCodes(course.getOfferedTerm()));
         }
     }
 

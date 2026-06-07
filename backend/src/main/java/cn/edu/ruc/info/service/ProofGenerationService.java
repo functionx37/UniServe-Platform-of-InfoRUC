@@ -6,6 +6,8 @@ import cn.edu.ruc.info.mapper.GeneratedProofMapper;
 import cn.edu.ruc.info.util.EncryptUtil;
 import cn.edu.ruc.info.util.StoragePathHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.apache.fontbox.ttf.TrueTypeCollection;
+import org.apache.fontbox.ttf.TrueTypeFont;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -17,20 +19,30 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class ProofGenerationService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy年MM月dd日");
+    private static final List<String> PROJECT_FONT_CANDIDATES = List.of(
+            "backend/fonts/msyh.ttc",
+            "backend/fonts/msyhbd.ttc",
+            "fonts/msyh.ttc",
+            "fonts/msyhbd.ttc");
     private static final List<String> FONT_CANDIDATES = List.of(
             "C:\\Windows\\Fonts\\msyh.ttc",
             "C:\\Windows\\Fonts\\msyh.ttf",
@@ -67,13 +79,14 @@ public class ProofGenerationService {
         String fileName = proofType + "-" + user.getStudentNo() + ".pdf";
         Path output = storagePathHelper.getProofPath().resolve(fileId + ".pdf").normalize();
 
-        try (PDDocument document = new PDDocument()) {
+        try (PDDocument document = new PDDocument();
+             LoadedFont loadedFont = loadFont(document, fontPath)) {
             try {
                 Files.createDirectories(output.getParent());
             } catch (IOException e) {
                 throw new RuntimeException("证明文件目录不可写");
             }
-            renderProof(document, fontPath, proofType, user, form);
+            renderProof(document, loadedFont, proofType, user, form);
             document.save(output.toFile());
         } catch (IOException e) {
             throw new RuntimeException("生成 PDF 证明失败");
@@ -102,8 +115,10 @@ public class ProofGenerationService {
         };
         Path fontPath = resolveFontPathOrNull();
 
-        try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            renderProof(document, fontPath, proofType, user, form);
+        try (PDDocument document = new PDDocument();
+             ByteArrayOutputStream out = new ByteArrayOutputStream();
+             LoadedFont loadedFont = loadFont(document, fontPath)) {
+            renderProof(document, loadedFont, proofType, user, form);
             document.save(out);
             return out.toByteArray();
         } catch (IOException e) {
@@ -127,22 +142,11 @@ public class ProofGenerationService {
         return proof;
     }
 
-    private void renderProof(PDDocument document, Path fontPath, String proofType, User user, Map<String, Object> form) throws IOException {
+    private void renderProof(PDDocument document, LoadedFont loadedFont, String proofType, User user, Map<String, Object> form) throws IOException {
         PDPage page = new PDPage(PDRectangle.A4);
         document.addPage(page);
-        boolean hasUnicodeFont = false;
-        PDFont font;
-        try {
-            if (fontPath != null) {
-                font = PDType0Font.load(document, fontPath.toFile());
-                hasUnicodeFont = true;
-            } else {
-                font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-            }
-        } catch (IOException e) {
-            font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-            hasUnicodeFont = false;
-        }
+        PDFont font = loadedFont.font();
+        boolean hasUnicodeFont = loadedFont.hasUnicodeFont();
         String title = hasUnicodeFont ? proofType : "Proof";
         List<String> lines = hasUnicodeFont ? buildContentLines(proofType, user, form) : buildAsciiFallbackLines(proofType, user, form);
 
@@ -302,6 +306,11 @@ public class ProofGenerationService {
     }
 
     private Path resolveFontPathOrNull() {
+        for (Path candidate : buildProjectFontCandidates()) {
+            if (Files.exists(candidate)) {
+                return candidate;
+            }
+        }
         for (String candidate : FONT_CANDIDATES) {
             Path path = Path.of(candidate);
             if (Files.exists(path)) {
@@ -313,6 +322,111 @@ public class ProofGenerationService {
             return resolved;
         }
         return null;
+    }
+
+    private List<Path> buildProjectFontCandidates() {
+        List<Path> candidates = new ArrayList<>();
+        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
+        Path serviceDirectory = Path.of("backend", "src", "main", "java", "cn", "edu", "ruc", "info", "service")
+                .toAbsolutePath()
+                .normalize();
+        Path backendDirectory = serviceDirectory;
+        for (int i = 0; i < 8 && backendDirectory != null; i++) {
+            backendDirectory = backendDirectory.getParent();
+        }
+
+        for (String candidate : PROJECT_FONT_CANDIDATES) {
+            candidates.add(workingDirectory.resolve(candidate).normalize());
+        }
+        if (backendDirectory != null) {
+            candidates.add(backendDirectory.resolve("fonts/msyh.ttc").normalize());
+            candidates.add(backendDirectory.resolve("fonts/msyhbd.ttc").normalize());
+        }
+        return candidates.stream().filter(Objects::nonNull).distinct().toList();
+    }
+
+    private LoadedFont loadFont(PDDocument document, Path fontPath) {
+        try {
+            if (fontPath != null) {
+                return loadFontFromPath(document, fontPath);
+            }
+            for (String resource : List.of("fonts/msyh.ttc", "fonts/msyhbd.ttc")) {
+                LoadedFont loadedFont = loadFontFromResource(document, resource);
+                if (loadedFont != null) {
+                    return loadedFont;
+                }
+            }
+        } catch (IOException e) {
+            return new LoadedFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), false, null);
+        }
+        return new LoadedFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), false, null);
+    }
+
+    private LoadedFont loadFontFromPath(PDDocument document, Path fontPath) throws IOException {
+        try {
+            String fileName = fontPath.getFileName().toString().toLowerCase();
+            if (fileName.endsWith(".ttc")) {
+                TrueTypeCollection collection = new TrueTypeCollection(fontPath.toFile());
+                try {
+                    FontCollector collector = new FontCollector();
+                    collection.processAllFonts(collector);
+                    TrueTypeFont ttf = collector.firstFont();
+                    if (ttf == null) {
+                        throw new IOException("字体集合为空");
+                    }
+                    PDFont font = PDType0Font.load(document, ttf, true);
+                    return new LoadedFont(font, true, collection);
+                } catch (IOException e) {
+                    collection.close();
+                    throw e;
+                } catch (RuntimeException e) {
+                    collection.close();
+                    throw e;
+                }
+            }
+            return new LoadedFont(PDType0Font.load(document, fontPath.toFile()), true, null);
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    private LoadedFont loadFontFromResource(PDDocument document, String resourcePath) throws IOException {
+        InputStream rawStream = ProofGenerationService.class.getClassLoader().getResourceAsStream(resourcePath);
+        if (rawStream == null) {
+            return null;
+        }
+        InputStream stream = rawStream;
+        try {
+            if (resourcePath.toLowerCase().endsWith(".ttc")) {
+                TrueTypeCollection collection = new TrueTypeCollection(stream);
+                stream = null;
+                try {
+                    FontCollector collector = new FontCollector();
+                    collection.processAllFonts(collector);
+                    TrueTypeFont ttf = collector.firstFont();
+                    if (ttf == null) {
+                        throw new IOException("字体集合为空");
+                    }
+                    PDFont font = PDType0Font.load(document, ttf, true);
+                    return new LoadedFont(font, true, collection);
+                } catch (IOException e) {
+                    collection.close();
+                    throw e;
+                } catch (RuntimeException e) {
+                    collection.close();
+                    throw e;
+                }
+            }
+            PDFont font = PDType0Font.load(document, stream);
+            stream = null;
+            return new LoadedFont(font, true, null);
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        } finally {
+            if (stream != null) {
+                stream.close();
+            }
+        }
     }
 
     private Path scanFontDirectory(Path root) {
@@ -332,6 +446,38 @@ public class ProofGenerationService {
                     .orElse(null);
         } catch (IOException ignored) {
             return null;
+        }
+    }
+
+    private record LoadedFont(PDFont font, boolean hasUnicodeFont, Closeable closeable) implements AutoCloseable {
+
+        @Override
+        public void close() throws IOException {
+            if (closeable != null) {
+                closeable.close();
+            }
+        }
+    }
+
+    private static final class FontCollector implements TrueTypeCollection.TrueTypeFontProcessor {
+
+        private TrueTypeFont firstFont;
+
+        @Override
+        public void process(TrueTypeFont ttf) {
+            if (firstFont == null) {
+                firstFont = ttf;
+            } else {
+                try {
+                    ttf.close();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+
+        private TrueTypeFont firstFont() {
+            return firstFont;
         }
     }
 }

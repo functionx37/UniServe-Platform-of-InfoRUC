@@ -6,6 +6,7 @@ Page({
     loading: false,
     errorMsg: "",
     analysis: null,
+    metricLabel: "学分",
     summaryItems: []
   },
   onLoad() {
@@ -21,14 +22,15 @@ Page({
     try {
       const res = await academic.getAnalysis()
       const analysis = res.data || null
+      const metricLabel = (analysis && analysis.metricLabel) || "学分"
       const summaryItems = analysis
         ? [
-            { label: "总学分", value: (Number(analysis.totalCredits) || 0) + " 学分" },
-            { label: "已完成", value: (Number(analysis.earnedCredits) || 0) + " 学分" },
-            { label: "缺少", value: (Number(analysis.gapCredits) || 0) + " 学分" }
+            { label: "总" + metricLabel, value: (Number(analysis.totalCredits) || 0) + " " + metricLabel },
+            { label: "已完成", value: (Number(analysis.earnedCredits) || 0) + " " + metricLabel },
+            { label: "缺少", value: (Number(analysis.gapCredits) || 0) + " " + metricLabel }
           ]
         : []
-      this.setData({ analysis, summaryItems })
+      this.setData({ analysis, metricLabel, summaryItems })
     } catch (e) {
       this.setData({ errorMsg: (e && e.message) || "加载失败" })
     } finally {

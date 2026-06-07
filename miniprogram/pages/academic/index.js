@@ -8,7 +8,7 @@ Page({
     overview: null,
     completionPercent: 0,
     overviewItems: [],
-    uploadSubtitle: "支持 PDF / Excel",
+    uploadSubtitle: "支持 PDF / Excel / CSV",
     riskSubtitle: "暂无风险提示"
   },
   onLoad() {
@@ -24,21 +24,24 @@ Page({
     try {
       const res = await academic.getOverview()
       const overview = res.data || null
+      const metricLabel = (overview && overview.metricLabel) || "学分"
       const total = overview ? Number(overview.totalCredits) || 0 : 0
       const earned = overview ? Number(overview.earnedCredits) || 0 : 0
       const completionPercent = total > 0 ? Math.round((earned / total) * 100) : 0
       const overviewItems = overview
         ? [
-            { label: "培养方案总学分", value: total + " 学分" },
-            { label: "已完成学分", value: earned + " 学分" },
-            { label: "缺少学分", value: (Number(overview.gapCredits) || 0) + " 学分" }
+            { label: "培养方案总" + metricLabel, value: total + " " + metricLabel },
+            { label: "已完成" + metricLabel, value: earned + " " + metricLabel },
+            { label: "缺少" + metricLabel, value: (Number(overview.gapCredits) || 0) + " " + metricLabel }
           ]
         : []
 
       const uploadSubtitle =
         overview && overview.transcript && overview.transcript.fileName
-          ? "最近上传：" + overview.transcript.fileName
-          : "支持 PDF / Excel"
+          ? "最近上传：" +
+            overview.transcript.fileName +
+            (overview.transcript.parsed === false ? "（解析失败/未完成）" : "")
+          : "支持 PDF / Excel / CSV"
       const riskCount = overview ? Number(overview.riskCount) || 0 : 0
       const riskSubtitle = riskCount > 0 ? "当前风险点：" + riskCount + " 项" : "暂无风险提示"
 

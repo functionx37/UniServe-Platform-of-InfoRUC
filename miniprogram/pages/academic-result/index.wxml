@@ -22,15 +22,40 @@
         <view wx:for="{{analysis.modules}}" wx:key="key" style="padding: 14rpx 0; border-top: 2rpx solid var(--color-border)">
           <view style="display:flex; justify-content:space-between; align-items:baseline">
             <text class="u-text" style="font-size: 30rpx; font-weight: 600">{{item.title}}</text>
-            <text class="u-subtitle">{{item.earnedCredits}} / {{item.requiredCredits}} 学分</text>
+            <text class="u-subtitle">{{item.earnedCredits}} / {{item.requiredCredits}} {{metricLabel}}</text>
           </view>
           <view style="height: 10rpx"></view>
           <progress-bar
             percent="{{item.percent}}"
-            valueText="{{item.gapCredits > 0 ? ('缺口 ' + item.gapCredits + ' 学分') : '已达标'}}"
+            valueText="{{item.gapCredits > 0 ? ('缺口 ' + item.gapCredits + ' ' + metricLabel) : '已达标'}}"
             colorType="{{item.gapCredits > 0 ? 'warning' : 'success'}}"
             showPercent="{{false}}"
           />
+        </view>
+      </view>
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">识别情况</view>
+        <view style="height: 10rpx"></view>
+        <view class="u-subtitle">匹配到培养方案课程：{{analysis.matchedCourseCount || 0}} 门</view>
+        <view style="height: 10rpx"></view>
+        <empty-state
+          wx:if="{{!analysis.unmatchedTranscriptCourses || !analysis.unmatchedTranscriptCourses.length}}"
+          title="无未匹配课程"
+          description="成绩单课程均能与培养方案课程匹配"
+        />
+        <view wx:else>
+          <view wx:for="{{analysis.unmatchedTranscriptCourses}}" wx:key="*this" style="padding: 10rpx 0; border-top: 2rpx solid var(--color-border)">
+            <text class="u-text--muted">- {{item}}</text>
+          </view>
+        </view>
+        <view style="height: 10rpx"></view>
+        <view wx:if="{{analysis.semesterContext}}">
+          <view class="u-subtitle">当前时间：{{analysis.semesterContext.currentDate}}</view>
+          <view class="u-subtitle">当前学期：{{analysis.semesterContext.currentLabel}}</view>
+          <view class="u-subtitle">下学期：{{analysis.semesterContext.nextLabel}}</view>
         </view>
       </view>
 
@@ -50,12 +75,53 @@
       <view style="height: 16rpx"></view>
 
       <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">范围选课规则未满足</view>
+        <view style="height: 10rpx"></view>
+        <empty-state
+          wx:if="{{!analysis.unfinishedGroups || !analysis.unfinishedGroups.length}}"
+          title="暂无缺口"
+          description="所有范围选课规则均已满足"
+        />
+        <view wx:else>
+          <view wx:for="{{analysis.unfinishedGroups}}" wx:key="groupKey" style="padding: 12rpx 0; border-top: 2rpx solid var(--color-border)">
+            <text class="u-text" style="font-weight:600">- {{item.moduleTitle}}</text>
+            <view class="u-subtitle">{{item.ruleText}}（{{item.completedCount}}/{{item.requiredCount}}，缺 {{item.gapCount}}）</view>
+            <view class="u-subtitle">本学期可开：{{item.availableThisTermCount}} 门</view>
+            <view wx:if="{{item.candidateCourses && item.candidateCourses.length}}" class="u-subtitle">
+              备选：{{item.candidateCourses.join('、')}}
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
         <view class="u-title" style="font-size: 32rpx">未完成必修</view>
         <view style="height: 10rpx"></view>
         <empty-state wx:if="{{!analysis.missingRequiredCourses || !analysis.missingRequiredCourses.length}}" title="无缺失" description="必修课已完成" />
         <view wx:else>
           <view wx:for="{{analysis.missingRequiredCourses}}" wx:key="course" style="padding: 10rpx 0; border-top: 2rpx solid var(--color-border)">
             <text class="u-text">- {{item.course}}</text>
+            <view wx:if="{{item.reason}}" class="u-subtitle">{{item.reason}}</view>
+          </view>
+        </view>
+      </view>
+
+      <view style="height: 16rpx"></view>
+
+      <view class="u-card u-card--flat" style="padding: 18rpx 20rpx">
+        <view class="u-title" style="font-size: 32rpx">建议选课</view>
+        <view style="height: 10rpx"></view>
+        <empty-state
+          wx:if="{{!analysis.recommendedCourses || !analysis.recommendedCourses.length}}"
+          title="暂无建议"
+          description="请先上传成绩单并完成解析，且确保已配置培养方案"
+        />
+        <view wx:else>
+          <view wx:for="{{analysis.recommendedCourses}}" wx:key="course" style="padding: 10rpx 0; border-top: 2rpx solid var(--color-border)">
+            <text class="u-text">- {{item.course}}</text>
+            <view class="u-subtitle">{{item.recommendedFor}}｜{{item.module}}</view>
             <view wx:if="{{item.reason}}" class="u-subtitle">{{item.reason}}</view>
           </view>
         </view>

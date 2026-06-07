@@ -32,6 +32,9 @@ async function request<T>(url: string, options: RequestOptions = {}): Promise<{ 
   }
 
   const result = await response.json()
+  if (result && result.success === false) {
+    throw new Error(result.message || '请求失败')
+  }
   if (!response.ok) {
     throw new Error(result.message || '请求失败')
   }

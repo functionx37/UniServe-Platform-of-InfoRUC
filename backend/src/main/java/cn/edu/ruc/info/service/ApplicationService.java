@@ -321,7 +321,7 @@ public class ApplicationService {
     }
 
     private boolean supportsProof(String typeKey) {
-        return "leave".equals(typeKey) || "enrollment_cert".equals(typeKey) || "political_cert".equals(typeKey);
+        return "enrollment_cert".equals(typeKey) || "political_cert".equals(typeKey);
     }
 
     private Long requireUserId() {

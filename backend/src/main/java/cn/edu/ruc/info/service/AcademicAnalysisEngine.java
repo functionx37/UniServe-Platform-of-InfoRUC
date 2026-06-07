@@ -179,6 +179,8 @@ public class AcademicAnalysisEngine {
             if (course == null) {
                 continue;
             }
+            // Persist the curriculum-standard course name so later comparison does not depend on raw transcript layout.
+            record.setCourseName(course.getCourseName());
             if (!StringUtils.hasText(record.getCategory()) || "未分类".equals(record.getCategory())) {
                 record.setCategory(course.getModule());
             }
@@ -354,6 +356,14 @@ public class AcademicAnalysisEngine {
             return exactMatch.get();
         }
 
+        CurriculumService.RequiredCourse containedMatch = findBestContainedMatch(
+                normalizedRecordName,
+                requiredCourses,
+                claimedRequirementKeys);
+        if (containedMatch != null) {
+            return containedMatch;
+        }
+
         List<CurriculumService.RequiredCourse> prefixMatches = requiredCourses.stream()
                 .filter(course -> !claimedRequirementKeys.contains(course.getNormalizedName()))
                 .filter(course -> isRelaxedMatch(normalizedRecordName, course.getNormalizedName()))
@@ -372,6 +382,40 @@ public class AcademicAnalysisEngine {
             }
         }
         return null;
+    }
+
+    private CurriculumService.RequiredCourse findBestContainedMatch(String normalizedRecordName,
+            List<CurriculumService.RequiredCourse> requiredCourses,
+            Set<String> claimedRequirementKeys) {
+        List<CurriculumService.RequiredCourse> containedMatches = requiredCourses.stream()
+                .filter(course -> !claimedRequirementKeys.contains(course.getNormalizedName()))
+                .filter(course -> isContainedMatch(normalizedRecordName, course.getNormalizedName()))
+                .sorted(Comparator.comparingInt((CurriculumService.RequiredCourse course) -> course.getNormalizedName().length())
+                        .reversed())
+                .collect(Collectors.toList());
+        if (containedMatches.isEmpty()) {
+            return null;
+        }
+        if (containedMatches.size() == 1) {
+            return containedMatches.get(0);
+        }
+        int firstLength = containedMatches.get(0).getNormalizedName().length();
+        int secondLength = containedMatches.get(1).getNormalizedName().length();
+        if (firstLength > secondLength) {
+            return containedMatches.get(0);
+        }
+        return null;
+    }
+
+    private boolean isContainedMatch(String normalizedRecordName, String normalizedCourseName) {
+        if (!StringUtils.hasText(normalizedRecordName) || !StringUtils.hasText(normalizedCourseName)) {
+            return false;
+        }
+        if (normalizedRecordName.equals(normalizedCourseName)) {
+            return true;
+        }
+        return normalizedRecordName.contains(normalizedCourseName)
+                || normalizedCourseName.contains(normalizedRecordName);
     }
 
     private boolean isRelaxedMatch(String left, String right) {

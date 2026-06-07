@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -54,5 +55,26 @@ class AcademicAnalysisEngineTest {
                 .anyMatch(item -> "毛泽东思想和中国特色社会主义理论体系概论".equals(item.getCourse())));
         assertTrue(snapshot.getRecommendedCourses().stream()
                 .anyMatch(item -> item.getCourse().contains("毛泽东思想")));
+    }
+
+    @Test
+    void shouldNormalizeTranscriptCourseNameWhenRawLineContainsTeacherAndScore() {
+        Path curriculumPath = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
+        CurriculumService.CurriculumDefinition definition = curriculumDefinitionParser.parseExcelDefinition(curriculumPath);
+
+        AcademicRecord record = new AcademicRecord();
+        record.setUserId(1L);
+        record.setCourseName("高等数学I 周春来 98 82");
+
+        List<AcademicRecord> records = new ArrayList<>();
+        records.add(record);
+
+        analysisEngine.enrichRecords(records, definition);
+
+        assertEquals("高等数学Ⅰ", records.get(0).getCourseName());
+        AcademicAnalysisEngine.AnalysisSnapshot snapshot =
+                analysisEngine.analyze(records, definition, LocalDate.of(2026, 6, 7));
+        assertEquals(1, snapshot.getMatchedCourseCount());
+        assertFalse(snapshot.getUnmatchedTranscriptCourses().contains("高等数学I 周春来 98 82"));
     }
 }

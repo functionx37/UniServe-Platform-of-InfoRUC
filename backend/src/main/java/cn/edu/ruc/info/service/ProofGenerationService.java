@@ -68,6 +68,11 @@ public class ProofGenerationService {
         Path output = storagePathHelper.getProofPath().resolve(fileId + ".pdf").normalize();
 
         try (PDDocument document = new PDDocument()) {
+            try {
+                Files.createDirectories(output.getParent());
+            } catch (IOException e) {
+                throw new RuntimeException("证明文件目录不可写");
+            }
             renderProof(document, fontPath, proofType, user, form);
             document.save(output.toFile());
         } catch (IOException e) {
@@ -125,10 +130,19 @@ public class ProofGenerationService {
     private void renderProof(PDDocument document, Path fontPath, String proofType, User user, Map<String, Object> form) throws IOException {
         PDPage page = new PDPage(PDRectangle.A4);
         document.addPage(page);
-        boolean hasUnicodeFont = fontPath != null;
-        PDFont font = hasUnicodeFont
-                ? PDType0Font.load(document, fontPath.toFile())
-                : new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+        boolean hasUnicodeFont = false;
+        PDFont font;
+        try {
+            if (fontPath != null) {
+                font = PDType0Font.load(document, fontPath.toFile());
+                hasUnicodeFont = true;
+            } else {
+                font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            }
+        } catch (IOException e) {
+            font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            hasUnicodeFont = false;
+        }
         String title = hasUnicodeFont ? proofType : "Proof";
         List<String> lines = hasUnicodeFont ? buildContentLines(proofType, user, form) : buildAsciiFallbackLines(proofType, user, form);
 

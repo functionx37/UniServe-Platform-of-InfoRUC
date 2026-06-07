@@ -197,7 +197,22 @@ public class CurriculumDefinitionParser {
         }
         if (definition.getRequiredCourses() != null) {
             for (CurriculumService.RequiredCourse course : definition.getRequiredCourses()) {
+<<<<<<< HEAD
                 normalizeCourse(course);
+=======
+                if (course == null) {
+                    continue;
+                }
+                if (!StringUtils.hasText(course.getNormalizedName())) {
+                    course.setNormalizedName(normalizeCourseName(course.getCourseName()));
+                }
+                if (!StringUtils.hasText(course.getModuleKey())) {
+                    course.setModuleKey(toKey(course.getModule()));
+                }
+                if (course.getOfferedTermCodes() == null) {
+                    course.setOfferedTermCodes(parseOfferedTermCodes(course.getOfferedTerm()));
+                }
+>>>>>>> origin/main
             }
         }
         if (definition.getRequirementGroups() != null) {
@@ -206,12 +221,28 @@ public class CurriculumDefinitionParser {
                     continue;
                 }
                 for (CurriculumService.RequiredCourse course : group.getCourses()) {
+<<<<<<< HEAD
                     normalizeCourse(course);
+=======
+                    if (course == null) {
+                        continue;
+                    }
+                    if (!StringUtils.hasText(course.getNormalizedName())) {
+                        course.setNormalizedName(normalizeCourseName(course.getCourseName()));
+                    }
+                    if (!StringUtils.hasText(course.getModuleKey())) {
+                        course.setModuleKey(toKey(course.getModule()));
+                    }
+                    if (course.getOfferedTermCodes() == null) {
+                        course.setOfferedTermCodes(parseOfferedTermCodes(course.getOfferedTerm()));
+                    }
+>>>>>>> origin/main
                 }
             }
         }
     }
 
+<<<<<<< HEAD
     private void normalizeCourse(CurriculumService.RequiredCourse course) {
         if (course == null) {
             return;
@@ -227,6 +258,8 @@ public class CurriculumDefinitionParser {
         }
     }
 
+=======
+>>>>>>> origin/main
     private Map<String, Integer> buildHeaderMap(Row headerRow, DataFormatter formatter) {
         Map<String, Integer> headerMap = new HashMap<>();
         if (headerRow == null) {

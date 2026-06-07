@@ -69,7 +69,7 @@ Page({
     wx.switchTab({ url: "/pages/applications/index" })
   },
   goUploads() {
-    wx.navigateTo({ url: "/pages/transcript-upload/index" })
+    wx.navigateTo({ url: "/pages/academic-result/index" })
   },
   logout() {
     clearToken()

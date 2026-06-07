@@ -131,7 +131,7 @@ public class AcademicService {
         String fileName = file.getOriginalFilename();
         String extension = extensionOf(fileName);
         if (!List.of(".pdf", ".xls", ".xlsx", ".csv").contains(extension)) {
-            throw new RuntimeException("仅支持 PDF / Excel 成绩单文件");
+            throw new RuntimeException("仅支持 PDF / Excel / CSV 成绩单文件");
         }
 
         String fileId = "file-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);

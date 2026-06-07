@@ -17,7 +17,7 @@
       <progress-bar
         label="完成进度"
         percent="{{completionPercent}}"
-        valueText="{{overview.earnedCredits + '/' + overview.totalCredits + ' 学分'}}"
+        valueText="{{overview.earnedCredits + '/' + overview.totalCredits + ' ' + (overview.metricLabel || '学分')}}"
         colorType="{{overview.gapCredits > 0 ? 'warning' : 'success'}}"
       />
 
@@ -31,7 +31,7 @@
           bind:tap="goUpload"
         />
         <nav-card
-          title="查看培养方案比对"
+          title="查看分析结果"
           subtitle="查看缺口学分、未完成必修、选课建议"
           iconText="析"
           bind:tap="goResult"

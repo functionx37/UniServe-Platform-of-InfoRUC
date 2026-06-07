@@ -64,7 +64,7 @@ class AcademicAnalysisEngineTest {
 
         AcademicRecord record = new AcademicRecord();
         record.setUserId(1L);
-        record.setCourseName("高等数学I 周春来 98 82");
+        record.setCourseName("高等数学I 周春来 部类基础 5 95 86");
 
         List<AcademicRecord> records = new ArrayList<>();
         records.add(record);
@@ -75,6 +75,6 @@ class AcademicAnalysisEngineTest {
         AcademicAnalysisEngine.AnalysisSnapshot snapshot =
                 analysisEngine.analyze(records, definition, LocalDate.of(2026, 6, 7));
         assertEquals(1, snapshot.getMatchedCourseCount());
-        assertFalse(snapshot.getUnmatchedTranscriptCourses().contains("高等数学I 周春来 98 82"));
+        assertFalse(snapshot.getUnmatchedTranscriptCourses().contains("高等数学I 周春来 部类基础 5 95 86"));
     }
 }

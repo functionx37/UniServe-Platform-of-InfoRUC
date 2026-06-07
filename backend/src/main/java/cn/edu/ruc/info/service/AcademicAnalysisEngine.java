@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -350,7 +351,7 @@ public class AcademicAnalysisEngine {
             Set<String> claimedRequirementKeys) {
         Optional<CurriculumService.RequiredCourse> exactMatch = requiredCourses.stream()
                 .filter(course -> !claimedRequirementKeys.contains(course.getNormalizedName()))
-                .filter(course -> normalizedRecordName.equals(course.getNormalizedName()))
+                .filter(course -> courseAliases(course).contains(normalizedRecordName))
                 .findFirst();
         if (exactMatch.isPresent()) {
             return exactMatch.get();
@@ -366,16 +367,16 @@ public class AcademicAnalysisEngine {
 
         List<CurriculumService.RequiredCourse> prefixMatches = requiredCourses.stream()
                 .filter(course -> !claimedRequirementKeys.contains(course.getNormalizedName()))
-                .filter(course -> isRelaxedMatch(normalizedRecordName, course.getNormalizedName()))
-                .sorted(Comparator.comparingInt(course -> relaxedDistance(normalizedRecordName, course.getNormalizedName())))
+                .filter(course -> courseAliases(course).stream().anyMatch(alias -> isRelaxedMatch(normalizedRecordName, alias)))
+                .sorted(Comparator.comparingInt(course -> relaxedDistance(normalizedRecordName, bestRelaxedAlias(normalizedRecordName, course))))
                 .collect(Collectors.toList());
         if (prefixMatches.size() == 1) {
             return prefixMatches.get(0);
         }
         if (!prefixMatches.isEmpty()) {
-            int bestDistance = relaxedDistance(normalizedRecordName, prefixMatches.get(0).getNormalizedName());
+            int bestDistance = relaxedDistance(normalizedRecordName, bestRelaxedAlias(normalizedRecordName, prefixMatches.get(0)));
             List<CurriculumService.RequiredCourse> bestMatches = prefixMatches.stream()
-                    .filter(course -> relaxedDistance(normalizedRecordName, course.getNormalizedName()) == bestDistance)
+                    .filter(course -> relaxedDistance(normalizedRecordName, bestRelaxedAlias(normalizedRecordName, course)) == bestDistance)
                     .collect(Collectors.toList());
             if (bestMatches.size() == 1) {
                 return bestMatches.get(0);
@@ -389,8 +390,8 @@ public class AcademicAnalysisEngine {
             Set<String> claimedRequirementKeys) {
         List<CurriculumService.RequiredCourse> containedMatches = requiredCourses.stream()
                 .filter(course -> !claimedRequirementKeys.contains(course.getNormalizedName()))
-                .filter(course -> isContainedMatch(normalizedRecordName, course.getNormalizedName()))
-                .sorted(Comparator.comparingInt((CurriculumService.RequiredCourse course) -> course.getNormalizedName().length())
+                .filter(course -> courseAliases(course).stream().anyMatch(alias -> isContainedMatch(normalizedRecordName, alias)))
+                .sorted(Comparator.comparingInt((CurriculumService.RequiredCourse course) -> bestContainedAliasLength(normalizedRecordName, course))
                         .reversed())
                 .collect(Collectors.toList());
         if (containedMatches.isEmpty()) {
@@ -399,12 +400,41 @@ public class AcademicAnalysisEngine {
         if (containedMatches.size() == 1) {
             return containedMatches.get(0);
         }
-        int firstLength = containedMatches.get(0).getNormalizedName().length();
-        int secondLength = containedMatches.get(1).getNormalizedName().length();
+        int firstLength = bestContainedAliasLength(normalizedRecordName, containedMatches.get(0));
+        int secondLength = bestContainedAliasLength(normalizedRecordName, containedMatches.get(1));
         if (firstLength > secondLength) {
             return containedMatches.get(0);
         }
         return null;
+    }
+
+    private int bestContainedAliasLength(String normalizedRecordName, CurriculumService.RequiredCourse course) {
+        return courseAliases(course).stream()
+                .filter(alias -> isContainedMatch(normalizedRecordName, alias))
+                .mapToInt(String::length)
+                .max()
+                .orElse(0);
+    }
+
+    private String bestRelaxedAlias(String normalizedRecordName, CurriculumService.RequiredCourse course) {
+        return courseAliases(course).stream()
+                .filter(alias -> isRelaxedMatch(normalizedRecordName, alias))
+                .min(Comparator.comparingInt(alias -> relaxedDistance(normalizedRecordName, alias)))
+                .orElse(course.getNormalizedName());
+    }
+
+    private Set<String> courseAliases(CurriculumService.RequiredCourse course) {
+        Set<String> aliases = new LinkedHashSet<>();
+        if (course == null || !StringUtils.hasText(course.getNormalizedName())) {
+            return aliases;
+        }
+        String normalized = course.getNormalizedName();
+        aliases.add(normalized);
+        aliases.add(normalized.replace("iii", "3").replace("ii", "2").replace("iv", "4").replace("v", "5").replace("i", "1"));
+        aliases.add(normalized.replace("iii", "3").replace("ii", "2").replace("i", "l"));
+        aliases.add(normalized.replace("3", "iii").replace("2", "ii").replace("4", "iv").replace("5", "v").replace("1", "i"));
+        aliases.removeIf(alias -> !StringUtils.hasText(alias));
+        return aliases;
     }
 
     private boolean isContainedMatch(String normalizedRecordName, String normalizedCourseName) {
@@ -512,12 +542,7 @@ public class AcademicAnalysisEngine {
         if (!StringUtils.hasText(input)) {
             return "";
         }
-        return input.trim()
-                .replace("Ⅰ", "I")
-                .replace("Ⅱ", "II")
-                .replace("Ⅲ", "III")
-                .replace("Ⅳ", "IV")
-                .replace("Ⅴ", "V")
+        return Normalizer.normalize(input.trim(), Normalizer.Form.NFKC)
                 .replace("（", "(")
                 .replace("）", ")")
                 .replaceAll("[\\s\\-—_/（）()【】\\[\\]·、,，.:：;；'\"`]+", "")

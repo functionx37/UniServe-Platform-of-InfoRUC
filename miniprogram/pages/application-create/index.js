@@ -26,6 +26,13 @@ Page({
       path: ""
     }
   },
+  getTodayText() {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
+  },
   onLoad() {
     if (!ensureLoggedIn()) return
   },
@@ -50,6 +57,18 @@ Page({
 
     const selected = this.data.types[this.data.typeIndex] || {}
     if (selected.key !== "leave") return
+
+    const today = this.getTodayText()
+    if (value && String(value) < today) {
+      wx.showModal({
+        title: "日期不合法",
+        content: "请假日期不能早于今日，请重新选择。",
+        showCancel: false
+      })
+      const fixedForm = { ...nextForm, [key]: "" }
+      this.setData({ form: fixedForm })
+      return
+    }
 
     const start = String(nextForm.leaveStart || "")
     const end = String(nextForm.leaveEnd || "")
@@ -77,8 +96,11 @@ Page({
   validate(typeKey, form) {
     const f = form || {}
     if (typeKey === "leave") {
+      const today = this.getTodayText()
       if (!required(f.leaveStart)) return "请选择请假开始日期"
       if (!required(f.leaveEnd)) return "请选择请假结束日期"
+      if (String(f.leaveStart) < today) return "请假开始日期不能早于今日"
+      if (String(f.leaveEnd) < today) return "请假结束日期不能早于今日"
       if (String(f.leaveEnd) < String(f.leaveStart)) return "请假结束日期不能早于请假开始日期"
       if (!required(f.reason)) return "请填写请假事由"
       if (!required(f.contactPhone)) return "请填写联系电话"
@@ -102,6 +124,14 @@ Page({
       const form = this.data.form || {}
       const err = this.validate(typeKey, form)
       if (err) {
+        if (typeKey === "leave" && (err.indexOf("不能早于今日") >= 0)) {
+          wx.showModal({
+            title: "日期不合法",
+            content: "请假日期不能早于今日，请重新选择。",
+            showCancel: false
+          })
+          return
+        }
         if (typeKey === "leave" && err.indexOf("结束日期不能早于开始日期") >= 0) {
           wx.showModal({
             title: "日期不合法",

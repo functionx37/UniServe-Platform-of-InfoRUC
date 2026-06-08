@@ -1,15 +1,23 @@
 package cn.edu.ruc.info.service;
 
+import cn.edu.ruc.info.common.Result;
 import cn.edu.ruc.info.entity.AcademicRecord;
 import cn.edu.ruc.info.util.JsonUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.*;
@@ -83,20 +91,99 @@ class AcademicAnalysisEngineTest {
     @Test
     void shouldMatchRealTranscriptPdfWhenLocalFileExists() {
         Path curriculumPath = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
-        Path transcriptPath = Path.of("../file/1780845712735.pdf").normalize();
-        assumeTrue(Files.exists(transcriptPath), "local regression file not present");
+        Path transcriptPath = findLocalRealTranscriptPdf();
+        assumeTrue(transcriptPath != null, "local regression file not present");
 
         CurriculumService.CurriculumDefinition definition = curriculumDefinitionParser.parseExcelDefinition(curriculumPath);
-        List<AcademicRecord> records = transcriptParsingService.parse(transcriptPath, "1780845712735.pdf", 1L).getRecords();
+        List<AcademicRecord> records = transcriptParsingService.parse(
+                transcriptPath,
+                transcriptPath.getFileName().toString(),
+                1L,
+                definition).getRecords();
         analysisEngine.enrichRecords(records, definition);
         AcademicAnalysisEngine.AnalysisSnapshot snapshot =
-                analysisEngine.analyze(records, definition, LocalDate.of(2026, 6, 7));
+                analysisEngine.analyze(records, definition, LocalDate.of(2026, 6, 8));
 
         assertFalse(records.isEmpty(), "real transcript parsed no course records");
         assertTrue(snapshot.getMatchedCourseCount() > 0,
                 "real transcript matched 0 courses, unmatched=" + snapshot.getUnmatchedTranscriptCourses());
         assertTrue(records.stream().anyMatch(record -> record.getCourseName().contains("高等数学")),
                 "real transcript did not include expected 高等数学 course, records=" + records);
+        assertTrue(snapshot.getMatchedCourseCount() >= 15,
+                "real transcript matched too few courses, matched=" + snapshot.getMatchedCourseCount()
+                        + ", records=" + records);
+        Set<String> parsedCourses = new HashSet<>(records.stream().map(AcademicRecord::getCourseName).toList());
+        assertTrue(parsedCourses.contains("高等数学Ⅰ"), "missing parsed course 高等数学Ⅰ: " + parsedCourses);
+        assertTrue(parsedCourses.contains("高等代数Ⅰ"), "missing parsed course 高等代数Ⅰ: " + parsedCourses);
+        assertTrue(parsedCourses.contains("思想道德与法治"), "missing parsed course 思想道德与法治: " + parsedCourses);
+        assertTrue(parsedCourses.contains("程序设计荣誉课程"), "missing parsed course 程序设计荣誉课程: " + parsedCourses);
+        assertTrue(parsedCourses.contains("中国近现代史纲要"), "missing parsed course 中国近现代史纲要: " + parsedCourses);
+        assertTrue(parsedCourses.contains("英语演讲"), "missing parsed course 英语演讲: " + parsedCourses);
+    }
+
+    @Test
+    void shouldExportRealAcademicAnalysisResponseToJsonWhenLocalFileExists() throws IOException {
+        Path curriculumPath = Path.of("../file/培养方案示例/培养方案示例.xlsx").normalize();
+        Path transcriptPath = findLocalRealTranscriptPdf();
+        assumeTrue(transcriptPath != null, "local regression file not present");
+
+        CurriculumService.CurriculumDefinition definition = curriculumDefinitionParser.parseExcelDefinition(curriculumPath);
+        List<AcademicRecord> records = transcriptParsingService.parse(
+                transcriptPath,
+                transcriptPath.getFileName().toString(),
+                1L,
+                definition).getRecords();
+        analysisEngine.enrichRecords(records, definition);
+
+        AcademicAnalysisEngine.AnalysisSnapshot snapshot =
+                analysisEngine.analyze(records, definition, LocalDate.of(2026, 6, 8));
+        assertTrue(snapshot.getMatchedCourseCount() > 0,
+                "real transcript matched 0 courses, unmatched=" + snapshot.getUnmatchedTranscriptCourses());
+
+        AcademicService.AnalysisVO responseData = AcademicService.AnalysisVO.builder()
+                .transcript(buildTranscriptInfo(transcriptPath))
+                .metricLabel(snapshot.getMetricLabel())
+                .preciseCredits(snapshot.isPreciseCredits())
+                .totalCredits(snapshot.getTotalCredits())
+                .earnedCredits(snapshot.getEarnedCredits())
+                .gapCredits(snapshot.getGapCredits())
+                .modules(snapshot.getModules().stream()
+                        .map(item -> AcademicService.ModuleProgress.builder()
+                                .key(item.getKey())
+                                .title(item.getTitle())
+                                .requiredCredits(item.getRequiredCredits())
+                                .earnedCredits(item.getEarnedCredits())
+                                .percent(item.getPercent())
+                                .gapCredits(item.getGapCredits())
+                                .build())
+                        .toList())
+                .missingRequiredCourses(snapshot.getMissingRequiredCourses().stream()
+                        .map(item -> AcademicService.MissingCourse.builder()
+                                .course(item.getCourse())
+                                .reason(item.getReason())
+                                .module(item.getModule())
+                                .offeredTerm(item.getOfferedTerm())
+                                .availableThisTerm(item.isAvailableThisTerm())
+                                .build())
+                        .toList())
+                .unfinishedGroups(snapshot.getUnfinishedGroups())
+                .recommendedCourses(snapshot.getRecommendedCourses())
+                .semesterContext(snapshot.getSemesterContext())
+                .matchedCourseCount(snapshot.getMatchedCourseCount())
+                .unmatchedTranscriptCourses(snapshot.getUnmatchedTranscriptCourses())
+                .risks(snapshot.getRisks())
+                .suggestions(snapshot.getSuggestions())
+                .build();
+
+        Result<AcademicService.AnalysisVO> result = Result.success(responseData);
+        Path outputPath = Path.of("../file/学业分析真实后端输出.json").normalize();
+
+        new ObjectMapper()
+                .enable(SerializationFeature.INDENT_OUTPUT)
+                .writeValue(outputPath.toFile(), result);
+
+        assertTrue(Files.exists(outputPath), "analysis export file not created");
+        assertTrue(Files.size(outputPath) > 0, "analysis export file is empty");
     }
 
     @Test
@@ -119,6 +206,50 @@ class AcademicAnalysisEngineTest {
         } finally {
             Files.deleteIfExists(tempFile);
         }
+    }
+
+    private Path findLocalRealTranscriptPdf() {
+        Path fileDir = Path.of("../file").normalize();
+        if (!Files.isDirectory(fileDir)) {
+            return null;
+        }
+        try (Stream<Path> paths = Files.list(fileDir)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().matches("\\d+\\.pdf"))
+                    .sorted(Comparator.comparingLong(this::timestampFromFileName).reversed())
+                    .findFirst()
+                    .orElse(null);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private long timestampFromFileName(Path path) {
+        String fileName = path.getFileName().toString();
+        int dotIndex = fileName.lastIndexOf('.');
+        String stem = dotIndex >= 0 ? fileName.substring(0, dotIndex) : fileName;
+        try {
+            return Long.parseLong(stem);
+        } catch (NumberFormatException e) {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    private AcademicService.TranscriptInfo buildTranscriptInfo(Path transcriptPath) throws IOException {
+        String fileName = transcriptPath.getFileName().toString();
+        String stem = fileName.substring(0, fileName.lastIndexOf('.'));
+        String uploadedAt = Files.getLastModifiedTime(transcriptPath)
+                .toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime()
+                .toString();
+        return AcademicService.TranscriptInfo.builder()
+                .fileId("local-regression-" + stem)
+                .fileName(fileName)
+                .uploadedAt(uploadedAt)
+                .parsed(true)
+                .build();
     }
 
 }

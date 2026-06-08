@@ -178,21 +178,32 @@ public class TranscriptParsingService {
     private List<AcademicRecord> parsePdf(Path filePath, Long userId, CurriculumService.CurriculumDefinition definition) {
         String text;
         try (PDDocument document = Loader.loadPDF(filePath.toFile())) {
-            text = new PDFTextStripper().getText(document);
+            PDFTextStripper textStripper = new PDFTextStripper();
+            textStripper.setSortByPosition(true);
+            text = textStripper.getText(document);
         } catch (IOException e) {
             throw new RuntimeException("解析 PDF 成绩单失败");
         }
         if (!StringUtils.hasText(text)) {
             throw new RuntimeException("解析失败：文件内容无法识别，请确认上传的是文本型 PDF 成绩单");
         }
-        List<AcademicRecord> records = parsePdfTabular(text, userId);
-        if (records.isEmpty()) {
+        List<AcademicRecord> records;
+        if (definition != null) {
             records = parsePdfTranscriptLayout(text, userId, definition);
+            if (records.isEmpty()) {
+                records = parsePdfTabular(text, userId);
+            }
+        } else {
+            records = parsePdfTabular(text, userId);
+            if (records.isEmpty()) {
+                records = parsePdfTranscriptLayout(text, userId, null);
+            }
         }
+        records = deduplicateRecords(records);
         if (records.isEmpty()) {
             throw new RuntimeException("解析失败：文件内容无法识别，请确认上传的是规范的文本型 PDF 成绩单");
         }
-        return deduplicateRecords(records);
+        return records;
     }
 
     private List<AcademicRecord> parsePdfTabular(String text, Long userId) {
@@ -245,8 +256,11 @@ public class TranscriptParsingService {
             if (!StringUtils.hasText(content)) {
                 continue;
             }
+            String normalizedContent = normalizeCourseTokenContent(content);
             List<String> matchedCourses = knownCourseNames.stream()
-                    .filter(content::contains)
+                    .filter(courseName -> containsCourseAlias(content, courseName)
+                            || normalizedCourseAliases(courseName).stream()
+                                    .anyMatch(alias -> containsCourseAlias(normalizedContent, alias)))
                     .sorted(Comparator.comparingInt(String::length).reversed())
                     .collect(Collectors.toList());
             for (String courseName : matchedCourses) {
@@ -264,7 +278,10 @@ public class TranscriptParsingService {
         Map<String, AcademicRecord> deduped = new LinkedHashMap<>();
         for (AcademicRecord record : records) {
             String key = defaultIfBlank(record.getSemester(), "") + "|" + defaultIfBlank(record.getCourseName(), "");
-            deduped.putIfAbsent(key, record);
+            AcademicRecord existing = deduped.get(key);
+            if (existing == null || recordCompletenessScore(record) > recordCompletenessScore(existing)) {
+                deduped.put(key, record);
+            }
         }
         return new ArrayList<>(deduped.values());
     }
@@ -337,6 +354,26 @@ public class TranscriptParsingService {
 
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    private int recordCompletenessScore(AcademicRecord record) {
+        if (record == null) {
+            return -1;
+        }
+        int score = 0;
+        if (record.getCredits() != null) {
+            score++;
+        }
+        if (record.getScore() != null) {
+            score++;
+        }
+        if (StringUtils.hasText(record.getCategory()) && !"未分类".equals(record.getCategory())) {
+            score++;
+        }
+        if (StringUtils.hasText(record.getSemester())) {
+            score++;
+        }
+        return score;
     }
 
     private boolean shouldSkipPdfLine(String line) {
@@ -414,6 +451,84 @@ public class TranscriptParsingService {
         } catch (IOException e) {
             return List.of();
         }
+    }
+
+    private Set<String> normalizedCourseAliases(String courseName) {
+        String normalized = normalizeCourseTokenContent(courseName);
+        if (!StringUtils.hasText(normalized)) {
+            return Set.of();
+        }
+        Set<String> aliases = new LinkedHashSet<>();
+        aliases.add(normalized);
+        aliases.add(normalized.replace("iii", "3")
+                .replace("ii", "2")
+                .replace("iv", "4")
+                .replace("v", "5")
+                .replace("i", "1"));
+        aliases.add(normalized.replace("3", "iii")
+                .replace("2", "ii")
+                .replace("4", "iv")
+                .replace("5", "v")
+                .replace("1", "i"));
+        aliases.add(normalized.replaceAll("[ab]$", ""));
+        aliases.removeIf(alias -> !StringUtils.hasText(alias));
+        return aliases;
+    }
+
+    private boolean containsCourseAlias(String normalizedContent, String alias) {
+        if (!StringUtils.hasText(normalizedContent) || !StringUtils.hasText(alias)) {
+            return false;
+        }
+        int searchFrom = 0;
+        while (searchFrom < normalizedContent.length()) {
+            int index = normalizedContent.indexOf(alias, searchFrom);
+            if (index < 0) {
+                return false;
+            }
+            int end = index + alias.length();
+            if (hasCourseAliasBoundary(normalizedContent, index, end)) {
+                return true;
+            }
+            if (end < normalizedContent.length()
+                    && isVariantSuffixLetter(normalizedContent.charAt(end))
+                    && hasCourseAliasBoundary(normalizedContent, index, end + 1)) {
+                return true;
+            }
+            searchFrom = index + 1;
+        }
+        return false;
+    }
+
+    private boolean hasCourseAliasBoundary(String normalizedContent, int start, int end) {
+        boolean leftBoundary = start == 0 || !isCourseNameChar(normalizedContent.charAt(start - 1));
+        boolean rightBoundary = end >= normalizedContent.length()
+                || !isCourseNameChar(normalizedContent.charAt(end));
+        return leftBoundary && rightBoundary;
+    }
+
+    private boolean isCourseNameChar(char value) {
+        return Character.UnicodeScript.of(value) == Character.UnicodeScript.HAN
+                || Character.isLetter(value);
+    }
+
+    private boolean isVariantSuffixLetter(char value) {
+        return value == 'a' || value == 'b';
+    }
+
+    private String normalizeCourseTokenContent(String input) {
+        if (!StringUtils.hasText(input)) {
+            return "";
+        }
+        return input.trim()
+                .replace("Ⅰ", "I")
+                .replace("Ⅱ", "II")
+                .replace("Ⅲ", "III")
+                .replace("Ⅳ", "IV")
+                .replace("Ⅴ", "V")
+                .replace("（", "(")
+                .replace("）", ")")
+                .replaceAll("[\\s\\-—_/（）()【】\\[\\]·、,，.:：;；'\"`]+", "")
+                .toLowerCase(Locale.ROOT);
     }
 
     private record SemesterSegment(String semester, int start, int end) {

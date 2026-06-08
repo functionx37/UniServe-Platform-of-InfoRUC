@@ -565,12 +565,31 @@ public class AdminService {
 
     @Transactional
     public void deleteNotification(String id) {
+        Notification notification = notificationMapper.selectById(id);
+        if (notification != null && isPushCategory(notification.getCategory())) {
+            LambdaQueryWrapper<DeliveryLog> logWrapper = new LambdaQueryWrapper<>();
+            logWrapper.eq(DeliveryLog::getTitle, notification.getTitle());
+            if (!isBlank(notification.getPublishAt())) {
+                logWrapper.eq(DeliveryLog::getSentAt, notification.getPublishAt());
+            }
+            deliveryLogMapper.delete(logWrapper);
+        }
         notificationMapper.deleteById(id);
         auditLogService.success("DELETE_NOTIFICATION", id);
     }
 
     @Transactional
     public void deleteDeliveryLog(String id) {
+        DeliveryLog log = deliveryLogMapper.selectById(id);
+        if (log != null) {
+            LambdaQueryWrapper<Notification> notificationWrapper = new LambdaQueryWrapper<>();
+            notificationWrapper.eq(Notification::getTitle, log.getTitle());
+            notificationWrapper.in(Notification::getCategory, List.of("推送", "精准推送"));
+            if (!isBlank(log.getSentAt())) {
+                notificationWrapper.eq(Notification::getPublishAt, log.getSentAt());
+            }
+            notificationMapper.delete(notificationWrapper);
+        }
         deliveryLogMapper.deleteById(id);
         auditLogService.success("DELETE_DELIVERY_LOG", id);
     }
@@ -713,6 +732,11 @@ public class AdminService {
             case "奖助", "通知" -> "学业";
             default -> normalized;
         };
+    }
+
+    private boolean isPushCategory(String category) {
+        String normalized = trimToNull(category);
+        return "推送".equals(normalized) || "精准推送".equals(normalized);
     }
 
     private UserVO toUserVO(User user) {

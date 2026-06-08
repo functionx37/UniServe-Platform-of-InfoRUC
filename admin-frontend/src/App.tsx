@@ -589,20 +589,20 @@ function App() {
                 </div>
                 <div className="panel">
                   <div className="panel-header">
-                    <h3>推送日志</h3>
+                    <h3>最近通知公告</h3>
                     <button className="btn btn-ghost" onClick={() => setActiveView('notifications')}>更多</button>
                   </div>
                   <div className="table-container">
                     <table>
-                      <thead><tr><th>标题</th><th>对象</th><th>时间</th><th>操作</th></tr></thead>
+                      <thead><tr><th>标题</th><th>分类</th><th>时间</th><th>操作</th></tr></thead>
                       <tbody>
-                        {deliveryLogs.slice(0, 10).map(log => (
-                          <tr key={log.id}>
-                            <td>{log.title}</td>
-                            <td>{log.audience?.split('/')[0] || '全体'}</td>
-                            <td>{log.sentAt?.split(' ')[0] || '-'}</td>
+                        {notifications.slice(0, 10).map(notification => (
+                          <tr key={notification.id}>
+                            <td>{notification.title}</td>
+                            <td>{notification.category || '-'}</td>
+                            <td>{notification.publishAt?.split(' ')[0] || '-'}</td>
                             <td>
-                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeletePushLog(log.id)}>删除</button>
+                              <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => handleDeleteNotification(notification.id)}>删除</button>
                             </td>
                           </tr>
                         ))}

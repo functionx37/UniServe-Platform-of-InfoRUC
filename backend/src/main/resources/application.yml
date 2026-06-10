@@ -32,8 +32,8 @@ app:
     proof-dir: ${APP_PROOF_DIR:generated-proofs}
     attachments-dir: ${APP_ATTACHMENTS_DIR:attachments}
   llm:
-    base-url: ${LLM_BASE_URL:}
-    api-token: ${LLM_API_TOKEN:}
-    model: ${LLM_MODEL:gpt-4.1-mini}
+    base-url: ${LLM_BASE_URL:https://api.deepseek.com/v1}
+    api-token: ${LLM_API_TOKEN:sk-51c7397b969644c9896a0fce92db5627}
+    model: ${LLM_MODEL:deepseek-chat}
     embedding-model: ${LLM_EMBEDDING_MODEL:}
     timeout-ms: ${LLM_TIMEOUT_MS:20000}

@@ -107,6 +107,12 @@ export interface ImportUsersResult {
   message: string
 }
 
+export interface ImportPartyProgressResult {
+  importSession: ImportSessionVO
+  errors: string[]
+  message: string
+}
+
 export interface ImportNotificationsResult {
   session: ImportSessionVO
   message: string
@@ -281,6 +287,13 @@ export const adminApi = {
 
   async importUsers(rows: any[]) {
     return request<ImportUsersResult>('/admin/users/import', {
+      method: 'POST',
+      body: rows,
+    })
+  },
+
+  async importPartyProgress(fileName: string, rows: any[]) {
+    return request<ImportPartyProgressResult>(`/admin/party/import?fileName=${encodeURIComponent(fileName)}`, {
       method: 'POST',
       body: rows,
     })

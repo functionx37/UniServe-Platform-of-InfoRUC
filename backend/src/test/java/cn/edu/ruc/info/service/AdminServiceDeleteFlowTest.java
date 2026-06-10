@@ -6,6 +6,8 @@ import cn.edu.ruc.info.mapper.DeliveryLogMapper;
 import cn.edu.ruc.info.mapper.ImportSessionMapper;
 import cn.edu.ruc.info.mapper.NotificationMapper;
 import cn.edu.ruc.info.mapper.UserMapper;
+import cn.edu.ruc.info.mapper.UserPartyProgressMapper;
+import cn.edu.ruc.info.mapper.PartyStageMapper;
 import cn.edu.ruc.info.util.EncryptUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +40,10 @@ class AdminServiceDeleteFlowTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private EncryptUtil encryptUtil;
+    @Mock
+    private UserPartyProgressMapper userPartyProgressMapper;
+    @Mock
+    private PartyStageMapper partyStageMapper;
 
     private AdminService adminService;
 
@@ -50,7 +56,9 @@ class AdminServiceDeleteFlowTest {
                 userMapper,
                 auditLogService,
                 passwordEncoder,
-                encryptUtil);
+                encryptUtil,
+                userPartyProgressMapper,
+                partyStageMapper);
     }
 
     @Test

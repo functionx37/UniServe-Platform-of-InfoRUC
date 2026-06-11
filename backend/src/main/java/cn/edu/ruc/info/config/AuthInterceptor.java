@@ -92,7 +92,8 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private boolean isCadreForbiddenPath(String path, String method) {
         if (path.startsWith("/admin/knowledge") || path.startsWith("/admin/curriculum")
-                || path.startsWith("/admin/import") || path.startsWith("/admin/users")) {
+                || path.startsWith("/admin/import") || path.startsWith("/admin/users")
+                || path.startsWith("/admin/party")) {
             return true;
         }
         if (path.equals("/admin/audit") || path.contains("/audit")) {

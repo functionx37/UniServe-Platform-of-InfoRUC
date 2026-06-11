@@ -181,20 +181,6 @@ public class AdminController {
         }
     }
 
-    @PostMapping(value = "/party/import", consumes = "application/json")
-    public Result<AdminService.ImportPartyProgressResult> importPartyProgress(@RequestBody List<AdminService.ImportPartyProgressRow> rows,
-            @RequestParam(defaultValue = "party_progress.xlsx") String fileName) {
-        try {
-            requireAdminRole();
-            AdminService.ImportPartyProgressResult result = adminService.importPartyProgress(fileName, rows, UserContext.getUserId());
-            Result<AdminService.ImportPartyProgressResult> response = Result.success(result);
-            response.setMessage(result.getMessage());
-            return response;
-        } catch (RuntimeException e) {
-            return Result.error(e.getMessage());
-        }
-    }
-
     @PostMapping(value = "/users/import", consumes = "application/json")
     public Result<AdminService.ImportUsersResult> importUsers(@RequestBody List<AdminService.ImportUserRow> rows,
             @RequestParam(defaultValue = "users.xlsx") String fileName) {

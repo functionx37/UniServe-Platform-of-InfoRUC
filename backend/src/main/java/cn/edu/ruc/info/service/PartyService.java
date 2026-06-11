@@ -10,11 +10,18 @@ import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class PartyService {
+
+    private static final DateTimeFormatter COMPLETED_AT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
     private PartyStageMapper partyStageMapper;
@@ -23,48 +30,72 @@ public class PartyService {
 
     public PartyProgressVO getProgress() {
         Long userId = UserContext.getUserId();
-        if (userId == null)
+        if (userId == null) {
             throw new RuntimeException("未登录");
+        }
+        return getProgressForUser(userId);
+    }
 
-        // 获取标准流程阶段（按 order 排序）
-        List<PartyStage> stages = partyStageMapper.selectList(null);
-        stages.sort(Comparator.comparingInt(PartyStage::getStageOrder));
-
-        // 获取用户进度
+    public PartyProgressVO getProgressForUser(Long userId) {
+        if (userId == null) {
+            throw new RuntimeException("用户不存在");
+        }
         List<UserPartyProgress> userProgress = userPartyProgressMapper.selectList(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserPartyProgress>()
                         .eq(UserPartyProgress::getUserId, userId));
-        Set<Integer> completedStageIds = userProgress.stream()
-                .filter(UserPartyProgress::getCompleted)
-                .map(UserPartyProgress::getStageId)
-                .collect(Collectors.toSet());
+        return buildProgress(listOrderedStages(), toLatestProgressMap(userProgress));
+    }
 
-        // 构造节点
+    List<PartyStage> listOrderedStages() {
+        List<PartyStage> stages = new ArrayList<>(partyStageMapper.selectList(null));
+        stages.sort(Comparator.comparingInt(PartyStage::getStageOrder));
+        return stages;
+    }
+
+    Map<Integer, UserPartyProgress> toLatestProgressMap(List<UserPartyProgress> progressRows) {
+        Map<Integer, UserPartyProgress> latestProgressMap = new LinkedHashMap<>();
+        if (progressRows == null) {
+            return latestProgressMap;
+        }
+        for (UserPartyProgress progress : progressRows) {
+            if (progress == null || progress.getStageId() == null) {
+                continue;
+            }
+            UserPartyProgress current = latestProgressMap.get(progress.getStageId());
+            if (current == null || isNewer(progress, current)) {
+                latestProgressMap.put(progress.getStageId(), progress);
+            }
+        }
+        return latestProgressMap;
+    }
+
+    PartyProgressVO buildProgress(List<PartyStage> stages, Map<Integer, UserPartyProgress> latestProgressMap) {
         List<Node> nodes = new ArrayList<>();
         int currentIndex = -1;
+        int doneCount = 0;
         for (int i = 0; i < stages.size(); i++) {
             PartyStage stage = stages.get(i);
-            boolean done = completedStageIds.contains(stage.getId());
-            // 第一个未完成的阶段即为当前阶段
+            UserPartyProgress progress = latestProgressMap.get(stage.getId());
+            boolean done = progress != null && Boolean.TRUE.equals(progress.getCompleted());
             if (!done && currentIndex == -1) {
                 currentIndex = i;
+            }
+            if (done) {
+                doneCount++;
             }
             String status = done ? "done" : (i == currentIndex ? "current" : "todo");
             nodes.add(Node.builder()
                     .key("node-" + stage.getId())
                     .title(stage.getTitle())
                     .desc(stage.getDescription())
-                    .time(stage.getDefaultTime())
+                    .time(resolveNodeTime(stage, progress, done))
                     .status(status)
                     .build());
         }
 
-        // 计算进度百分比
         int totalStages = stages.size();
-        int doneCount = (int) nodes.stream().filter(n -> "done".equals(n.getStatus())).count();
         int percent = totalStages > 0 ? (doneCount * 100 / totalStages) : 0;
 
-        // 待办：当前阶段对应的提示（简单用阶段描述）
         List<Todo> todos = new ArrayList<>();
         if (currentIndex >= 0 && currentIndex < stages.size()) {
             PartyStage currentStage = stages.get(currentIndex);
@@ -75,15 +106,48 @@ public class PartyService {
                     .build());
         }
 
+        String currentStageName;
+        if (stages.isEmpty()) {
+            currentStageName = "未配置阶段";
+        } else if (currentIndex >= 0) {
+            currentStageName = stages.get(currentIndex).getTitle();
+        } else {
+            currentStageName = "已完成全部阶段";
+        }
+
         return PartyProgressVO.builder()
-                .currentStage(currentIndex >= 0 ? stages.get(currentIndex).getTitle() : "未开始")
+                .currentStage(currentStageName)
                 .progressPercent(percent)
                 .nodes(nodes)
                 .todos(todos)
                 .build();
     }
 
-    // 内部 VO 定义
+    private boolean isNewer(UserPartyProgress candidate, UserPartyProgress baseline) {
+        Long candidateId = candidate.getId();
+        Long baselineId = baseline.getId();
+        if (candidateId != null && baselineId != null) {
+            return candidateId > baselineId;
+        }
+        LocalDateTime candidateAt = candidate.getCompletedAt();
+        LocalDateTime baselineAt = baseline.getCompletedAt();
+        if (candidateAt != null && baselineAt != null) {
+            return candidateAt.isAfter(baselineAt);
+        }
+        return candidateId != null;
+    }
+
+    private String resolveNodeTime(PartyStage stage, UserPartyProgress progress, boolean done) {
+        if (done && progress != null && progress.getCompletedAt() != null) {
+            return COMPLETED_AT_FORMATTER.format(progress.getCompletedAt());
+        }
+        return blankToEmpty(stage.getDefaultTime());
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value.trim();
+    }
+
     @Data
     @Builder
     public static class PartyProgressVO {

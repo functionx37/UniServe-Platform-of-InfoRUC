@@ -55,27 +55,25 @@ public class AdminService {
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // ===== 导入验证常量 =====
-    // 合法年级：4位数字年份格式（与前端 gradeOptions 保持一致）
+    // 合法年级：允许 "2023" 或 "2023级" 这类格式
     private static final Set<String> VALID_GRADES = Set.of(
-        "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025"
-    );
+            "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026");
+
 
     // 合法专业列表（与前端 majorOptions 保持一致）
     private static final Set<String> VALID_MAJORS = Set.of(
-        "计算机科学与技术",
-        "数据科学与大数据技术",
-        "信息安全",
-        "人工智能",
-        "信息学院"
-    );
+            "计算机科学与技术",
+            "数据科学与大数据技术",
+            "信息安全",
+            "人工智能",
+            "信息学院");
 
     // 合法身份列表（与前端 identityOptions 保持一致）
     private static final Set<String> VALID_IDENTITIES = Set.of(
-        "普通学生",
-        "班团骨干",
-        "研究生",
-        "预备党员"
-    );
+            "普通学生",
+            "班团骨干",
+            "研究生",
+            "预备党员");
 
     // 学号格式：至少8位数字（例如 20260001）
     private static final Pattern STUDENT_NO_PATTERN = Pattern.compile("^\\d{8,}$");
@@ -122,10 +120,13 @@ public class AdminService {
         if (request.getMajor() != null && !request.getMajor().equals("全部")) {
             userWrapper.eq(User::getMajor, request.getMajor());
         }
+        Long targetCount;
         if (request.getIdentity() != null && !request.getIdentity().equals("全部")) {
-            userWrapper.eq(User::getIdentity, request.getIdentity());
+            targetCount = (long) filterUsersByIdentity(userMapper.selectList(userWrapper), request.getIdentity())
+                    .size();
+        } else {
+            targetCount = userMapper.selectCount(userWrapper);
         }
-        Long targetCount = userMapper.selectCount(userWrapper);
         Long deliveryCount = deliveryLogMapper.selectCount(null);
 
         int successRate = 0;
@@ -348,7 +349,7 @@ public class AdminService {
         if (notification == null) {
             throw new RuntimeException("通知不存在");
         }
-        
+
         String oldStatus = notification.getStatus();
         notification.setStatus(status);
         notificationMapper.updateById(notification);
@@ -367,7 +368,7 @@ public class AdminService {
                     log.setStatus("已发布".equals(status) ? "已发送" : "已撤回");
                     deliveryLogMapper.updateById(log);
                 }
-            } 
+            }
             // 情况 B：是导入的推送类通知（id 以 policy- 开头），且从“待发布”变为“已发布”
             else if (id != null && id.startsWith("policy-") && "待发布".equals(oldStatus) && "已发布".equals(status)) {
                 DeliveryLog log = new DeliveryLog();
@@ -432,10 +433,14 @@ public class AdminService {
                 throw new RuntimeException("请求不能为空");
             }
             Integer roleId = normalizeRoleId(request.getRoleId());
-            enforceOperatorCanManageTarget(operatorRole, roleId);
-
             String username = trimToNull(request.getUsername());
             String studentNo = trimToNull(request.getStudentNo());
+            String normalizedIdentity = normalizeIdentityValue(request.getIdentity(), null);
+
+            if ((roleId == 3 || roleId == 4) && containsIdentity(normalizedIdentity, "班团骨干")) {
+                roleId = 3;
+            }
+            enforceOperatorCanManageTarget(operatorRole, roleId);
 
             if (roleId == 4 || roleId == 3) {
                 if (studentNo == null) {
@@ -449,6 +454,8 @@ public class AdminService {
                     throw new RuntimeException("用户名不能为空");
                 }
             }
+
+            validateUserFields(studentNo, trimToNull(request.getGrade()), trimToNull(request.getMajor()), normalizedIdentity, roleId);
 
             if (userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, username)) > 0) {
                 throw new RuntimeException("用户名已存在");
@@ -465,7 +472,7 @@ public class AdminService {
             user.setStudentNo(studentNo);
             user.setGrade(trimToNull(request.getGrade()));
             user.setMajor(trimToNull(request.getMajor()));
-            
+
             String defaultIdentity = "";
             if (roleId == 4) {
                 defaultIdentity = "普通学生";
@@ -476,8 +483,8 @@ public class AdminService {
             } else if (roleId == 1) {
                 defaultIdentity = "学院领导";
             }
-            user.setIdentity(defaultIfBlank(request.getIdentity(), defaultIdentity));
-            
+            user.setIdentity(normalizeIdentityValue(normalizedIdentity, defaultIdentity));
+
             user.setEmail(trimToNull(request.getEmail()));
             user.setPhone(encryptIfPresent(request.getPhone()));
             user.setIdCard(encryptIfPresent(request.getIdCard()));
@@ -550,7 +557,11 @@ public class AdminService {
                     user.setMajor(trimToNull(request.getMajor()));
                 }
                 if (request.getIdentity() != null) {
-                    user.setIdentity(trimToNull(request.getIdentity()));
+                    String normalizedIdentity = normalizeIdentityValue(request.getIdentity(), user.getIdentity());
+                    user.setIdentity(normalizedIdentity);
+                    if (user.getRoleId() != null && (user.getRoleId() == 3 || user.getRoleId() == 4)) {
+                        user.setRoleId(containsIdentity(normalizedIdentity, "班团骨干") ? 3 : 4);
+                    }
                 }
                 if (request.getEmail() != null) {
                     user.setEmail(trimToNull(request.getEmail()));
@@ -569,6 +580,7 @@ public class AdminService {
                         user.setPassword(passwordEncoder.encode(raw));
                     }
                 }
+                validateUserFields(user.getStudentNo(), user.getGrade(), user.getMajor(), user.getIdentity(), user.getRoleId());
             }
 
             userMapper.updateById(user);
@@ -651,50 +663,21 @@ public class AdminService {
                 ImportUserRow row = rows.get(i);
                 try {
                     // ===== 字段合法性校验 =====
-                    String grade = row == null ? null : row.getGrade();
-                    String major = row == null ? null : row.getMajor();
-                    String identity = row == null ? null : row.getIdentity();
+                    String grade = row == null ? null : trimToNull(row.getGrade());
+                    String major = row == null ? null : trimToNull(row.getMajor());
+                    String identity = row == null ? null : trimToNull(row.getIdentity());
                     String studentNo = row == null ? null : row.getStudentNo();
+                    Integer roleId = row == null ? null : row.getRoleId();
 
-                    // 校验年级 - 必须是合法的4位数字年份
-                    if (grade != null && !grade.isEmpty()) {
-                        String gradeTrimmed = grade.trim();
-                        if (!VALID_GRADES.contains(gradeTrimmed)) {
-                            throw new RuntimeException("年级「" + gradeTrimmed + "」不符合要求，有效值：" + String.join("、", VALID_GRADES));
-                        }
-                    }
-
-                    // 校验专业 - 必须在选项中
-                    if (major != null && !major.isEmpty()) {
-                        String majorTrimmed = major.trim();
-                        if (!VALID_MAJORS.contains(majorTrimmed)) {
-                            throw new RuntimeException("专业「" + majorTrimmed + "」没有在选项中，有效专业：" + String.join("、", VALID_MAJORS));
-                        }
-                    }
-
-                    // 校验身份 - 必须在选项中
-                    if (identity != null && !identity.isEmpty()) {
-                        String identityTrimmed = identity.trim();
-                        if (!VALID_IDENTITIES.contains(identityTrimmed)) {
-                            throw new RuntimeException("身份「" + identityTrimmed + "」不符合要求，有效值：" + String.join("、", VALID_IDENTITIES));
-                        }
-                    }
-
-                    // 校验学号 - 学生和骨干必须提供至少8位数字的学号
-                    if (studentNo != null && !studentNo.isEmpty()) {
-                        String studentNoTrimmed = studentNo.trim();
-                        if (!STUDENT_NO_PATTERN.matcher(studentNoTrimmed).matches()) {
-                            throw new RuntimeException("学号「" + studentNoTrimmed + "」不符合要求，学号必须为至少8位数字");
-                        }
-                    }
+                    validateUserFields(trimToNull(studentNo), grade, major, identity, roleId == null ? 4 : roleId);
                     // ===== 结束校验 =====
 
                     CreateUserRequest req = new CreateUserRequest();
                     req.setUsername(row == null ? null : row.getUsername());
                     req.setPassword(row == null ? null : row.getPassword());
-                    req.setRoleId(row == null ? null : row.getRoleId());
+                    req.setRoleId(roleId);
                     req.setRealName(row == null ? null : row.getRealName());
-                    req.setStudentNo(studentNo);
+                    req.setStudentNo(trimToNull(studentNo));
                     req.setGrade(grade);
                     req.setMajor(major);
                     req.setIdentity(identity);
@@ -764,7 +747,7 @@ public class AdminService {
 
     private List<User> listRecipients(PushFilter filter) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.ne(User::getRoleId, 1).ne(User::getRoleId, 2).ne(User::getRoleId, 3);
+        wrapper.ne(User::getRoleId, 1).ne(User::getRoleId, 2);
         if (filter != null) {
             if (!isBlank(filter.getGrade()) && !"全部".equals(filter.getGrade())) {
                 wrapper.eq(User::getGrade, filter.getGrade());
@@ -772,11 +755,8 @@ public class AdminService {
             if (!isBlank(filter.getMajor()) && !"全部".equals(filter.getMajor())) {
                 wrapper.eq(User::getMajor, filter.getMajor());
             }
-            if (!isBlank(filter.getIdentity()) && !"全部".equals(filter.getIdentity())) {
-                wrapper.eq(User::getIdentity, filter.getIdentity());
-            }
         }
-        return userMapper.selectList(wrapper);
+        return filterUsersByIdentity(userMapper.selectList(wrapper), filter == null ? null : filter.getIdentity());
     }
 
     private NotificationVO toNotificationVO(Notification notification) {
@@ -794,6 +774,93 @@ public class AdminService {
 
     private String defaultIfBlank(String value, String defaultValue) {
         return isBlank(value) ? defaultValue : value.trim();
+    }
+
+    private void validateUserFields(String studentNo, String grade, String major, String identity, Integer roleId) {
+        if (!isBlank(grade)) {
+            String gradeTrimmed = trimToNull(grade);
+            String normalizedGrade = normalizeGradeValue(gradeTrimmed);
+            if (!VALID_GRADES.contains(normalizedGrade)) {
+                throw new RuntimeException("年级「" + gradeTrimmed + "」不符合要求");
+            }
+        }
+        if (!isBlank(major)) {
+            String majorTrimmed = trimToNull(major);
+            if (!VALID_MAJORS.contains(majorTrimmed)) {
+                throw new RuntimeException("专业「" + majorTrimmed + "」没有在选项中");
+            }
+        }
+        if (!isBlank(identity)) {
+            normalizeIdentityValue(identity, null);
+        }
+        if (roleId != null && (roleId == 3 || roleId == 4)) {
+            String studentNoTrimmed = trimToNull(studentNo);
+            if (studentNoTrimmed == null) {
+                throw new RuntimeException("学生或骨干必须提供学号");
+            }
+            if (!STUDENT_NO_PATTERN.matcher(studentNoTrimmed).matches()) {
+                throw new RuntimeException("学号「" + studentNoTrimmed + "」不符合要求，学号必须为至少8位数字");
+            }
+        } else if (!isBlank(studentNo)) {
+            String studentNoTrimmed = trimToNull(studentNo);
+            if (!STUDENT_NO_PATTERN.matcher(studentNoTrimmed).matches()) {
+                throw new RuntimeException("学号「" + studentNoTrimmed + "」不符合要求，学号必须为至少8位数字");
+            }
+        }
+    }
+
+    private String normalizeGradeValue(String grade) {
+        String normalized = trimToNull(grade);
+        if (normalized == null) {
+            return null;
+        }
+        if (normalized.endsWith("级")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private List<User> filterUsersByIdentity(List<User> users, String identity) {
+        if (users == null || users.isEmpty() || isBlank(identity) || "全部".equals(identity)) {
+            return users == null ? List.of() : users;
+        }
+        return users.stream()
+                .filter(user -> containsIdentity(user == null ? null : user.getIdentity(), identity))
+                .collect(Collectors.toList());
+    }
+
+    private boolean containsIdentity(String rawIdentity, String targetIdentity) {
+        if (isBlank(targetIdentity)) {
+            return false;
+        }
+        return parseIdentityValues(rawIdentity).contains(targetIdentity.trim());
+    }
+
+    private String normalizeIdentityValue(String rawIdentity, String defaultIdentity) {
+        List<String> identities = parseIdentityValues(rawIdentity);
+        if (identities.isEmpty() && !isBlank(defaultIdentity)) {
+            identities = parseIdentityValues(defaultIdentity);
+        }
+        for (String identity : identities) {
+            if (!VALID_IDENTITIES.contains(identity)) {
+                throw new RuntimeException("身份「" + identity + "」不符合要求，有效值：" + String.join("、", VALID_IDENTITIES));
+            }
+        }
+        return String.join("、", identities);
+    }
+
+    private List<String> parseIdentityValues(String rawIdentity) {
+        if (isBlank(rawIdentity)) {
+            return new ArrayList<>();
+        }
+        List<String> identities = new ArrayList<>();
+        for (String item : rawIdentity.split("[、,，;；/]")) {
+            String normalized = trimToNull(item);
+            if (normalized != null && !identities.contains(normalized)) {
+                identities.add(normalized);
+            }
+        }
+        return identities;
     }
 
     private boolean isBlank(String value) {
@@ -1035,10 +1102,14 @@ public class AdminService {
         if (v == null) {
             return null;
         }
-        if ("学院领导".equals(v)) return 1;
-        if ("管理老师".equals(v)) return 2;
-        if ("骨干".equals(v) || "班团骨干".equals(v)) return 3;
-        if ("学生".equals(v) || "普通学生".equals(v)) return 4;
+        if ("学院领导".equals(v))
+            return 1;
+        if ("管理老师".equals(v))
+            return 2;
+        if ("骨干".equals(v) || "班团骨干".equals(v))
+            return 3;
+        if ("学生".equals(v) || "普通学生".equals(v))
+            return 4;
         try {
             return Integer.parseInt(v);
         } catch (NumberFormatException e) {

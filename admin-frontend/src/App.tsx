@@ -11,12 +11,30 @@ import { adminApi } from './api/adminApi'
 
 type ViewType = 'dashboard' | 'notifications' | 'push' | 'applications' | 'users' | 'knowledge' | 'curriculum'
 
+type PreviewRecipient = {
+  id: number
+  studentNo: string
+  realName: string
+  major: string
+}
+
+const parseIdentityValues = (value: string) =>
+  String(value || '')
+    .split(/[、,，;；/]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+const formatIdentityValues = (values: string[]) =>
+  identityOptions
+    .filter((option) => option !== '全部' && values.includes(option))
+    .join('、')
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!sessionStorage.getItem('token'))
   const [activeView, setActiveView] = useState<ViewType>('dashboard')
   const [teacherName, setTeacherName] = useState('加载中...')
   const [loading, setLoading] = useState(isLoggedIn)
-  
+
   // Login Form States
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -37,7 +55,7 @@ function App() {
   const [users, setUsers] = useState<any[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [userFilter, setUserFilter] = useState<any>({ roleId: null, isStudentOnly: true, grade: '全部', major: '全部' })
-  
+
   // Form/UI States
   const [selectedGrade, setSelectedGrade] = useState('全部')
   const [selectedMajor, setSelectedMajor] = useState('全部')
@@ -45,7 +63,7 @@ function App() {
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['站内消息'])
   const [pushTitle, setPushTitle] = useState('')
   const [pushContent, setPushContent] = useState('')
-  const [previewRecipients, setPreviewRecipients] = useState<any[]>([])
+  const [previewRecipients, setPreviewRecipients] = useState<PreviewRecipient[]>([])
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedApp, setSelectedApp] = useState<any>(null)
   const [isAppModalOpen, setIsAppModalOpen] = useState(false)
@@ -64,6 +82,7 @@ function App() {
     phone: '',
     idCard: ''
   })
+  const selectedNewUserIdentities = parseIdentityValues(newUser.identity)
 
   // Initialization
   useEffect(() => {
@@ -305,17 +324,19 @@ function App() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const normalizedIdentity = formatIdentityValues(selectedNewUserIdentities)
       // 自动设置用户名（如果为空则使用学号）
-      const payload = { 
-        ...newUser, 
+      const payload = {
+        ...newUser,
+        identity: normalizedIdentity || '普通学生',
         username: newUser.username || newUser.studentNo,
-        roleId: newUser.identity === '班团骨干' ? 3 : 4
+        roleId: selectedNewUserIdentities.includes('班团骨干') ? 3 : 4
       }
       await adminApi.createUser(payload)
       alert('学生档案录入成功')
       setIsAddUserModalOpen(false)
       setNewUser({
-        username: '', realName: '', studentNo: '', 
+        username: '', realName: '', studentNo: '',
         grade: '2023级', major: '计算机科学与技术', identity: '普通学生',
         email: '', phone: '', idCard: ''
       })
@@ -332,7 +353,7 @@ function App() {
       const buffer = await file.arrayBuffer()
       const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]])
-      
+
       const formatValue = (val: any) => {
         if (val instanceof Date) {
           const y = val.getFullYear();
@@ -356,19 +377,19 @@ function App() {
         username: formatValue(r['学号'] || r['用户名'] || r['username']),
         realName: formatValue(r['姓名'] || r['realName']),
         studentNo: formatValue(r['学号'] || r['studentNo']),
-        grade: formatValue(r['年级'] || r['grade'] || '2023级'),
-        major: formatValue(r['专业'] || r['major'] || '计算机科学与技术'),
-        identity: formatValue(r['身份'] || r['identity'] || '普通学生'),
+        grade: formatValue(r['年级'] || r['grade']),
+        major: formatValue(r['专业'] || r['major']),
+        identity: formatValue(r['身份'] || r['identity']),
         email: formatValue(r['邮箱'] || r['email']),
         phone: formatValue(r['手机号'] || r['phone']),
         roleId: getRoleId(r['角色ID'] || r['角色'] || r['roleId'])
       })).filter(row => row.roleId === 3 || row.roleId === 4)
-      
+
       if (rows.length === 0 && data.length > 0) {
         alert('导入失败：未在文件中找到合法的学生数据（角色应为学生或骨干）。')
         return
       }
-      
+
       const res = await adminApi.importUsers(rows)
       if (res && res.data && res.data.importSession) {
         const { successRows, failedRows } = res.data.importSession;
@@ -390,7 +411,7 @@ function App() {
       // cellDates: true 确保日期列被解析为 JS Date 对象而非 Excel 数字
       const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
       const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]])
-      
+
       const formatValue = (val: any) => {
         if (val instanceof Date) {
           // 格式化为 yyyy-MM-dd HH:mm
@@ -414,7 +435,7 @@ function App() {
         content: formatValue(r['内容'] || r['content']),
         links: formatValue(r['链接'] || r['links'] || '[]'),
       }))
-      
+
       const res = await adminApi.importNotifications(file.name, rows)
       if (res && res.data && res.data.session) {
         const { successRows, failedRows } = res.data.session;
@@ -481,22 +502,22 @@ function App() {
           <form onSubmit={handleLogin}>
             <div className="form-group">
               <label>管理账号</label>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="请输入账号" 
-                value={username} 
+              <input
+                type="text"
+                className="form-control"
+                placeholder="请输入账号"
+                value={username}
                 onChange={e => setUsername(e.target.value)}
                 required
               />
             </div>
             <div className="form-group">
               <label>登录密码</label>
-              <input 
-                type="password" 
-                className="form-control" 
-                placeholder="请输入密码" 
-                value={password} 
+              <input
+                type="password"
+                className="form-control"
+                placeholder="请输入密码"
+                value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
               />
@@ -657,8 +678,8 @@ function App() {
                 <div className="panel-header">
                   <h3>通知公告列表</h3>
                   <div style={{ display: 'flex', gap: '12px' }}>
-                    <button 
-                      className="btn btn-ghost" 
+                    <button
+                      className="btn btn-ghost"
                       onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('notifications'), 'notifications_import_template.xlsx')}
                       style={{ display: 'flex', alignItems: 'center' }}
                     >
@@ -685,9 +706,9 @@ function App() {
                           <td><span className={`badge ${n.status === '已发布' ? 'badge-success' : 'badge-warning'}`}>{n.status}</span></td>
                           <td>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                              <button 
-                                className="btn btn-ghost" 
-                                style={{ padding: '4px 8px', fontSize: '12px', color: n.status === '已发布' ? 'var(--warning)' : 'var(--success)' }} 
+                              <button
+                                className="btn btn-ghost"
+                                style={{ padding: '4px 8px', fontSize: '12px', color: n.status === '已发布' ? 'var(--warning)' : 'var(--success)' }}
                                 onClick={() => handleUpdateNotificationStatus(n.id, n.status)}
                               >
                                 {n.status === '已发布' ? '下线' : '发布'}
@@ -778,15 +799,15 @@ function App() {
                 </div>
                 <button className="btn btn-primary" style={{ width: '100%' }} onClick={handlePush}>立即发送到 {previewRecipients.length} 人</button>
               </div>
-              
+
               <div className="panel">
                 <div className="panel-header"><h3>命中学生预览 ({previewRecipients.length})</h3></div>
                 <div className="table-container" style={{ maxHeight: '600px' }}>
                   <table>
                     <thead><tr><th>学号</th><th>姓名</th><th>专业</th></tr></thead>
                     <tbody>
-                      {previewRecipients.map(s => (
-                        <tr key={s.id}><td>{s.id}</td><td>{s.name}</td><td>{s.major}</td></tr>
+                      {previewRecipients.map((s) => (
+                        <tr key={s.id}><td>{s.studentNo || '-'}</td><td>{s.realName || '-'}</td><td>{s.major || '-'}</td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -925,8 +946,8 @@ function App() {
                 <h3>学生档案中心</h3>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button className="btn btn-primary" onClick={() => setIsAddUserModalOpen(true)}>➕ 录入学生</button>
-                  <button 
-                    className="btn btn-ghost" 
+                  <button
+                    className="btn btn-ghost"
                     onClick={() => adminApi.downloadFile(adminApi.getTemplateDownloadUrl('users'), 'users_import_template.xlsx')}
                     style={{ display: 'flex', alignItems: 'center' }}
                   >
@@ -936,15 +957,15 @@ function App() {
                     📥 批量导入
                     <input type="file" style={{ display: 'none' }} onChange={handleUserImport} accept=".xlsx,.csv" />
                   </label>
-                  <input 
-                    className="form-control" 
-                    placeholder="搜索姓名/学号/账号..." 
+                  <input
+                    className="form-control"
+                    placeholder="搜索姓名/学号/账号..."
                     style={{ width: '240px' }}
                     value={userSearch}
                     onChange={e => setUserSearch(e.target.value)}
                   />
-                  <select 
-                    className="form-control" 
+                  <select
+                    className="form-control"
                     style={{ width: '120px' }}
                     value={userFilter.roleId || 'all'}
                     onChange={e => {
@@ -960,16 +981,16 @@ function App() {
                     <option value={4}>普通学生</option>
                     <option value={3}>班团骨干</option>
                   </select>
-                  <select 
-                    className="form-control" 
+                  <select
+                    className="form-control"
                     style={{ width: '120px' }}
                     value={userFilter.grade}
                     onChange={e => setUserFilter({ ...userFilter, grade: e.target.value })}
                   >
                     {gradeOptions.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
-                  <select 
-                    className="form-control" 
+                  <select
+                    className="form-control"
                     style={{ width: '150px' }}
                     value={userFilter.major}
                     onChange={e => setUserFilter({ ...userFilter, major: e.target.value })}
@@ -1058,13 +1079,13 @@ function App() {
                     {selectedApp.attachments.map((file: any, index: number) => {
                       const fileName = file.name || file.fileName || '附件' + (index + 1);
                       return (
-                        <div 
-                          key={index} 
+                        <div
+                          key={index}
                           onClick={() => adminApi.downloadFile(file.url, fileName)}
-                          style={{ 
-                            padding: '8px 12px', 
-                            background: 'var(--bg-workspace)', 
-                            borderRadius: '8px', 
+                          style={{
+                            padding: '8px 12px',
+                            background: 'var(--bg-workspace)',
+                            borderRadius: '8px',
                             fontSize: '13px',
                             textDecoration: 'none',
                             color: 'inherit',
@@ -1170,42 +1191,56 @@ function App() {
                 <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="form-group">
                     <label>姓名 *</label>
-                    <input className="form-control" required value={newUser.realName} onChange={e => setNewUser({...newUser, realName: e.target.value})} placeholder="学生姓名" />
+                    <input className="form-control" required value={newUser.realName} onChange={e => setNewUser({ ...newUser, realName: e.target.value })} placeholder="学生姓名" />
                   </div>
                   <div className="form-group">
                     <label>学号 *</label>
-                    <input className="form-control" required value={newUser.studentNo} onChange={e => setNewUser({...newUser, studentNo: e.target.value})} placeholder="学号 (将作为默认账号)" />
+                    <input className="form-control" required value={newUser.studentNo} onChange={e => setNewUser({ ...newUser, studentNo: e.target.value })} placeholder="学号 (将作为默认账号)" />
                   </div>
                   <div className="form-group">
                     <label>年级</label>
-                    <select className="form-control" value={newUser.grade} onChange={e => setNewUser({...newUser, grade: e.target.value})}>
+                    <select className="form-control" value={newUser.grade} onChange={e => setNewUser({ ...newUser, grade: e.target.value })}>
                       {gradeOptions.filter(o => o !== '全部').map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label>专业</label>
-                    <select className="form-control" value={newUser.major} onChange={e => setNewUser({...newUser, major: e.target.value})}>
+                    <select className="form-control" value={newUser.major} onChange={e => setNewUser({ ...newUser, major: e.target.value })}>
                       {majorOptions.filter(o => o !== '全部').map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label>身份类型</label>
-                    <select className="form-control" value={newUser.identity} onChange={e => setNewUser({...newUser, identity: e.target.value})}>
-                      {identityOptions.filter(o => o !== '全部').map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    <div className="panel" style={{ padding: '12px', display: 'grid', gap: '8px' }}>
+                      {identityOptions.filter(o => o !== '全部').map(option => (
+                        <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedNewUserIdentities.includes(option)}
+                            onChange={e => {
+                              const next = e.target.checked
+                                ? [...selectedNewUserIdentities, option]
+                                : selectedNewUserIdentities.filter(item => item !== option)
+                              setNewUser({ ...newUser, identity: formatIdentityValues(next) })
+                            }}
+                          />
+                          <span>{option}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label>电子邮箱</label>
-                    <input className="form-control" type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="可选" />
+                    <input className="form-control" type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} placeholder="可选" />
                   </div>
                 </div>
                 <div className="form-group">
                   <label>手机号码</label>
-                  <input className="form-control" value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} placeholder="可选" />
+                  <input className="form-control" value={newUser.phone} onChange={e => setNewUser({ ...newUser, phone: e.target.value })} placeholder="可选" />
                 </div>
                 <div className="form-group">
                   <label>身份证号</label>
-                  <input className="form-control" value={newUser.idCard} onChange={e => setNewUser({...newUser, idCard: e.target.value})} placeholder="可选" />
+                  <input className="form-control" value={newUser.idCard} onChange={e => setNewUser({ ...newUser, idCard: e.target.value })} placeholder="可选" />
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--muted)' }}>* 录入后，默认登录密码为 <code>123456</code>。</p>
               </div>

@@ -44,13 +44,42 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 public class AdminService {
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    // ===== 导入验证常量 =====
+    // 合法年级：4位数字年份格式（与前端 gradeOptions 保持一致）
+    private static final Set<String> VALID_GRADES = Set.of(
+        "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025"
+    );
+
+    // 合法专业列表（与前端 majorOptions 保持一致）
+    private static final Set<String> VALID_MAJORS = Set.of(
+        "计算机科学与技术",
+        "数据科学与大数据技术",
+        "信息安全",
+        "人工智能",
+        "信息学院"
+    );
+
+    // 合法身份列表（与前端 identityOptions 保持一致）
+    private static final Set<String> VALID_IDENTITIES = Set.of(
+        "普通学生",
+        "班团骨干",
+        "研究生",
+        "预备党员"
+    );
+
+    // 学号格式：至少8位数字（例如 20260001）
+    private static final Pattern STUDENT_NO_PATTERN = Pattern.compile("^\\d{8,}$");
+    // ===== 结束验证常量 =====
 
     private final NotificationMapper notificationMapper;
     private final DeliveryLogMapper deliveryLogMapper;
@@ -621,15 +650,54 @@ public class AdminService {
             for (int i = 0; i < rows.size(); i++) {
                 ImportUserRow row = rows.get(i);
                 try {
+                    // ===== 字段合法性校验 =====
+                    String grade = row == null ? null : row.getGrade();
+                    String major = row == null ? null : row.getMajor();
+                    String identity = row == null ? null : row.getIdentity();
+                    String studentNo = row == null ? null : row.getStudentNo();
+
+                    // 校验年级 - 必须是合法的4位数字年份
+                    if (grade != null && !grade.isEmpty()) {
+                        String gradeTrimmed = grade.trim();
+                        if (!VALID_GRADES.contains(gradeTrimmed)) {
+                            throw new RuntimeException("年级「" + gradeTrimmed + "」不符合要求，有效值：" + String.join("、", VALID_GRADES));
+                        }
+                    }
+
+                    // 校验专业 - 必须在选项中
+                    if (major != null && !major.isEmpty()) {
+                        String majorTrimmed = major.trim();
+                        if (!VALID_MAJORS.contains(majorTrimmed)) {
+                            throw new RuntimeException("专业「" + majorTrimmed + "」没有在选项中，有效专业：" + String.join("、", VALID_MAJORS));
+                        }
+                    }
+
+                    // 校验身份 - 必须在选项中
+                    if (identity != null && !identity.isEmpty()) {
+                        String identityTrimmed = identity.trim();
+                        if (!VALID_IDENTITIES.contains(identityTrimmed)) {
+                            throw new RuntimeException("身份「" + identityTrimmed + "」不符合要求，有效值：" + String.join("、", VALID_IDENTITIES));
+                        }
+                    }
+
+                    // 校验学号 - 学生和骨干必须提供至少8位数字的学号
+                    if (studentNo != null && !studentNo.isEmpty()) {
+                        String studentNoTrimmed = studentNo.trim();
+                        if (!STUDENT_NO_PATTERN.matcher(studentNoTrimmed).matches()) {
+                            throw new RuntimeException("学号「" + studentNoTrimmed + "」不符合要求，学号必须为至少8位数字");
+                        }
+                    }
+                    // ===== 结束校验 =====
+
                     CreateUserRequest req = new CreateUserRequest();
                     req.setUsername(row == null ? null : row.getUsername());
                     req.setPassword(row == null ? null : row.getPassword());
                     req.setRoleId(row == null ? null : row.getRoleId());
                     req.setRealName(row == null ? null : row.getRealName());
-                    req.setStudentNo(row == null ? null : row.getStudentNo());
-                    req.setGrade(row == null ? null : row.getGrade());
-                    req.setMajor(row == null ? null : row.getMajor());
-                    req.setIdentity(row == null ? null : row.getIdentity());
+                    req.setStudentNo(studentNo);
+                    req.setGrade(grade);
+                    req.setMajor(major);
+                    req.setIdentity(identity);
                     req.setEmail(row == null ? null : row.getEmail());
                     req.setPhone(row == null ? null : row.getPhone());
                     req.setIdCard(row == null ? null : row.getIdCard());

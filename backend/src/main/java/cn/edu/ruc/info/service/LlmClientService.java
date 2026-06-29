@@ -29,7 +29,7 @@ public class LlmClientService {
 
     public String chat(String systemPrompt, String userPrompt) {
         if (!StringUtils.hasText(llmProperties.getBaseUrl()) || !StringUtils.hasText(llmProperties.getApiToken())) {
-            return "知识库已命中相关政策片段，但当前未配置大模型服务，请先在环境变量中设置 LLM_BASE_URL 和 LLM_API_TOKEN。";
+            return "知识库已命中相关政策片段，但当前未配置大模型服务，请先在环境变量或 backend/.env 中设置 LLM_BASE_URL 和 LLM_API_TOKEN。";
         }
 
         HttpHeaders headers = new HttpHeaders();

@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     driver-class-name: ${DB_DRIVER_CLASS_NAME:org.postgresql.Driver}
     url: ${DB_URL:jdbc:postgresql://localhost:5432/student_db}
@@ -33,7 +35,7 @@ app:
     attachments-dir: ${APP_ATTACHMENTS_DIR:attachments}
   llm:
     base-url: ${LLM_BASE_URL:https://api.deepseek.com/v1}
-    api-token: ${LLM_API_TOKEN:sk-51c7397b969644c9896a0fce92db5627}
+    api-token: ${LLM_API_TOKEN:}
     model: ${LLM_MODEL:deepseek-chat}
     embedding-model: ${LLM_EMBEDDING_MODEL:}
     timeout-ms: ${LLM_TIMEOUT_MS:20000}

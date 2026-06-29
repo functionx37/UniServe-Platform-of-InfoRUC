@@ -1,0 +1,7 @@
+04b3f9b6471003be77a99c4cccd28274f37eef87 commit	refs/heads/main
+c534a7572f1d358a8cf271de795627ea4d19aef1 commit	refs/remotes/origin/HEAD
+3ed9915fe9f68e8af31099f5aac0401abcab7857 commit	refs/remotes/origin/feature/admin-frontend
+71d242b5fadc22a93392b7606115e483b9cb9be9 commit	refs/remotes/origin/feature/ai-analysis
+3ed9915fe9f68e8af31099f5aac0401abcab7857 commit	refs/remotes/origin/feature/backend-core
+07a0c5d1a330566cc369914048567e7f4f7a7b69 commit	refs/remotes/origin/feature/miniprogram
+c534a7572f1d358a8cf271de795627ea4d19aef1 commit	refs/remotes/origin/main
